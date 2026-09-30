@@ -48,31 +48,72 @@ body.pres #tel{display:block}body.pres #ui{display:none}
 .vw{flex-wrap:wrap}.vw button{flex:1 0 45%;padding:4px;font-size:11px}
 #log{font:10px/1.35 ui-monospace,monospace;max-height:110px;overflow:auto;margin:4px 0 0;white-space:pre;opacity:.8}
 @media(max-width:600px){#bar small{display:none}}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #4dabf7;outline-offset:2px}
+button{min-height:34px}.r label{margin:0}
+@media(pointer:coarse){button{min-height:44px}input[type=range]{height:28px}}
+.f{font-size:11px;opacity:.85;margin-top:6px}.hint{font-size:10px;opacity:.7;margin:2px 0}
+#toast{display:none;position:absolute;bottom:64px;left:50%;transform:translateX(-50%);max-width:min(560px,calc(100% - 24px));padding:8px 16px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.4);font-weight:600;text-align:center;z-index:3}
+#help{display:none;position:absolute;top:64px;right:8px;width:min(340px,calc(100% - 16px));max-height:calc(100% - 84px);overflow:auto;padding:12px 14px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(8px);font-size:12px;z-index:3}
+#help.on{display:block}#help h2{font-size:15px;margin:0 0 6px}#help h3{font-size:12px;margin:10px 0 3px}
+#help p,#help ol{margin:3px 0}#help ol{padding-left:18px}#help table{border-collapse:collapse;width:100%}
+#help td{padding:2px 4px;border-bottom:1px solid #8883}#help kbd{padding:0 6px;border:1px solid #8886;border-radius:4px;font:11px ui-monospace,monospace}
+#helpx{position:absolute;top:8px;right:8px;flex:none;padding:2px 10px;min-height:0}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" role="img" aria-label="Modelo 3D interativo do braço robótico"></canvas>
 <div id="bar">
   <span class="ttl">🦾 Braço Robótico<small>VR · MQTT · ESP32</small></span>
   <span id="modetag">Manual</span>
   <span id="badge" data-state="off">● Simulação (offline)</span>
-  <button id="estop" title="E-STOP (Esc)">⛔ E-STOP</button>
-  <button id="presb" class="o" title="Modo apresentação (P)">📽</button>
+  <button id="estop" title="Parada de emergência (E-STOP) — tecla E">⛔ PARADA</button>
+  <button id="presb" class="o" title="Modo apresentação (P)" aria-label="Modo apresentação">📽</button>
+  <button id="helpb" class="o" title="Ajuda (H)" aria-label="Ajuda">?</button>
 </div>
-<div id="estopBanner">⛔ E-STOP ATIVO — envio ao robô bloqueado</div>
+<div id="estopBanner" role="alert">⛔ PARADA DE EMERGÊNCIA ATIVA — envio ao robô bloqueado</div>
 <div id="cap"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="help" role="dialog" aria-label="Ajuda">
+  <button id="helpx" class="o" aria-label="Fechar ajuda">✕</button>
+  <h2>Ajuda</h2>
+  <h3>Atalhos de teclado</h3>
+  <table>
+    <tr><td><kbd>E</kbd></td><td>Parada de emergência (E-STOP)</td></tr>
+    <tr><td><kbd>Espaço</kbd></td><td>Iniciar / parar demonstração</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Modo apresentação</td></tr>
+    <tr><td><kbd>F</kbd></td><td>Tela cheia</td></tr>
+    <tr><td><kbd>H</kbd></td><td>Abrir / fechar esta ajuda</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Fechar ajuda ou sair da apresentação</td></tr>
+  </table>
+  <h3>Realidade virtual (mãos)</h3>
+  <p>Entre com o botão 🥽. <b>Pinça da mão esquerda</b> (polegar + indicador) habilita o controle. A <b>mão direita</b> guia o braço, e afastar polegar e indicador abre a garra.</p>
+  <h3>Conectar ao robô real</h3>
+  <ol>
+    <li>Abra <b>MQTT / ESP32</b> e informe a URL do broker (<code>wss://</code>), usuário e senha.</li>
+    <li>Clique em <b>Conectar</b>: o selo no topo fica verde.</li>
+    <li>Marque <b>Enviar comandos ao robô real</b> e confirme.</li>
+    <li>Em caso de risco: tecla <kbd>E</kbd> ou botão vermelho.</li>
+  </ol>
+  <h3>Sobre</h3>
+  <p>Navegador (Babylon.js) ⇄ broker MQTT ⇄ ESP32 ⇄ servos. Sem conexão, o app funciona como simulação.</p>
+</div>
 <div id="tel"><canvas id="telc" width="300" height="120"></canvas><div id="telleg"></div></div>
 <div id="loadc"><div>Carregando modelo 3D…</div><div class="pb"><i id="pbi"></i></div></div>
 <div id="ui">
   <h1>Controle das articulações</h1>
   <div id="sl"></div>
   <div class="b vw"><button class="o" data-v="front">Frontal</button><button class="o" data-v="side">Lateral</button><button class="o" data-v="top">Topo</button><button class="o" data-v="zoom">Detalhe</button></div>
-  <div class="b"><button id="demo">▶ Demo</button><button id="rst" class="o">Reset</button></div>
+  <div class="b"><button id="demo">▶ Demonstração</button><button id="rst" class="o">Zerar</button></div>
   <details><summary>MQTT / ESP32</summary>
-    <input id="url" type="text" placeholder="wss://broker:8884/mqtt">
-    <input id="usr" type="text" placeholder="usuário">
-    <input id="pwd" type="password" placeholder="senha">
-    <input id="pfx" type="text" placeholder="prefixo do tópico (ex: braco)" value="braco">
+    <label class="f" for="url">URL do broker</label>
+    <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off">
+    <label class="f" for="usr">Usuário</label>
+    <input id="usr" type="text" placeholder="usuário" autocomplete="off">
+    <label class="f" for="pwd">Senha</label>
+    <input id="pwd" type="password" placeholder="senha" autocomplete="off">
+    <div class="hint">🔒 A senha não é salva neste navegador.</div>
+    <label class="f" for="pfx">Prefixo dos tópicos</label>
+    <input id="pfx" type="text" placeholder="ex.: braco" value="braco">
     <label><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
     <label><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
     <div class="b"><button id="con">Conectar</button></div>
@@ -88,7 +129,7 @@ body.pres #tel{display:block}body.pres #ui{display:none}
 const B=BABYLON, K={"W": [0.3554, 0.0565, 0.18927], "S": [0.35292577566560457, 0.09682742678627118, 0.18292994423007594], "N": [0.68647, -1e-05, -0.72715], "El": [0.4023, 0.1847, 0.2383], "O3": [0.43602, 0.25325, 0.28705], "A": [0.48615, 0.74366, 0.45894], "E": [-0.82099, 0.5686, -0.0517], "P": [0.45147, 0.27709, 0.30396], "ng": [0.29645, 0.50191, 0.81252], "fA": [0.4701, 0.3233, 0.26879], "fB": [0.51506, 0.2866, 0.28552], "sA": 1, "sB": -1, "L1": 0.11500107055062504, "L2": 0.12355094738608846, "e0": 48.04413183184072, "roll0": 58.264463883196576, "sgn": -1, "g0e": 110.95215328077535, "phi0": 43.350858003566394, "sOff": -0.006151386717746927, "lat": 0.017449801656398336, "G4": {"A": {"P1": [0.033958087726439615, -0.01662875440100447], "P3": [0.0473674150091588, -0.03369378384312004], "Ld": 0.031177681253959606, "Ll": 0.033301384837220366, "Lf": 0.021840208904305707, "Lb": 0.021703117011971997, "th0": -0.047047568199852376, "P2r": [0.06510126985635029, -0.018095047412894295], "P4r": [0.08066762805154899, -0.0334144213401305], "phase": 0.0}, "B": {"P1": [0.021346422359354977, -0.03883727246430234], "P3": [0.0422679038477658, -0.04285889724994292], "Ld": 0.03150575955148798, "Ll": 0.02995518705517801, "Lf": 0.022909162301274724, "Lb": 0.021304503129300982, "th0": -1.5786892254023095, "P2r": [0.02109775317561017, -0.07034205065036853], "P4r": [0.04387780878593841, -0.07277079183388313], "phase": 30.0}}, "gearRatio": 0.9991905192159031};
 const CFG={modelUrl:"braco.glb",humanReach:0.6,shoulderSide:0.17,shoulderDown:0.25,
            sendHz:20,smooth:0.25,pinchOn:0.03,gripOpenDist:0.09};
-const $=id=>document.getElementById(id), say=t=>$("st").textContent=t;
+const $=id=>document.getElementById(id), say=t=>{$("st").textContent=t;if(/^[❌⚠⛔]/u.test(t))toast(t)};
 window.addEventListener("error",e=>say("❌ Erro: "+e.message));
 window.addEventListener("unhandledrejection",e=>say("❌ Erro: "+(e.reason&&e.reason.message||e.reason)));
 const D2R=Math.PI/180, R2D=180/Math.PI, clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -100,14 +141,14 @@ const S={waist:0,shoulder:0,elbow:0,pitch:0,grip:0}; const inputs={};
 let demo=false,t0=0,mode="manual"; // manual | mirror | hands
 J.forEach(([k,l,mn,mx])=>{
   const d=document.createElement("div");d.className="r";
-  d.innerHTML=`<span>${l}</span><input type="range" min="${mn}" max="${mx}" step="0.5" value="0"><output>0°</output>`;
+  d.innerHTML=`<label for="s_${k}">${l}</label><input id="s_${k}" type="range" min="${mn}" max="${mx}" step="0.5" value="0"><output>0°</output>`;
   $("sl").appendChild(d);const i=d.querySelector("input"),o=d.querySelector("output");
-  i.oninput=()=>{demo=false;$("demo").textContent="▶ Demo";S[k]=+i.value};inputs[k]=[i,o];
+  i.oninput=()=>{demo=false;$("demo").textContent="▶ Demonstração";S[k]=+i.value};inputs[k]=[i,o];
 });
 const syncUI=()=>J.forEach(([k])=>{inputs[k][0].value=S[k];inputs[k][1].textContent=Math.round(S[k])+"°"});
 const clampS=()=>J.forEach(([k,,mn,mx])=>S[k]=clamp(S[k],mn,mx));
-$("demo").onclick=()=>{demo=!demo;t0=performance.now()/1000;$("demo").textContent=demo?"⏸ Parar":"▶ Demo"};
-$("rst").onclick=()=>{demo=false;$("demo").textContent="▶ Demo";J.forEach(([k])=>S[k]=0);syncUI()};
+$("demo").onclick=()=>{demo=!demo;t0=performance.now()/1000;$("demo").textContent=demo?"⏸ Parar demo":"▶ Demonstração"};
+$("rst").onclick=()=>{demo=false;$("demo").textContent="▶ Demonstração";J.forEach(([k])=>S[k]=0);syncUI()};
 
 // ---------- Cinemática inversa (planar 2 elos + cintura + pulso) ----------
 // dAxis: distância horizontal do eixo da cintura ao pulso (m do modelo); h: altura relativa ao ombro;
@@ -188,12 +229,13 @@ function buildRig(scene,stage,K){
 
 // ---------- MQTT ----------
 let mq=null;
-const cfgKeys=["url","usr","pwd","pfx"];
+const cfgKeys=["url","usr","pfx"];try{localStorage.removeItem("braco_pwd")}catch(e){}
 try{cfgKeys.forEach(k=>{const v=localStorage.getItem("braco_"+k);if(v!==null)$(k).value=v})}catch(e){}
 $("con").onclick=()=>{
   try{cfgKeys.forEach(k=>localStorage.setItem("braco_"+k,$(k).value))}catch(e){}
   if(mq){mq.end(true);mq=null}
-  const url=$("url").value.trim();if(!url){$("mq").textContent="informe a URL wss://";return}
+  const url=$("url").value.trim();if(!/^wss?:\/\/.+/i.test(url)){setConn("off","URL inválida","Informe a URL do broker começando com wss:// (ex.: wss://broker.exemplo.com:8884/mqtt).");return}
+  if(/^ws:\/\//i.test(url)&&location.protocol==="https:"){setConn("off","URL insegura","Esta página é HTTPS: o navegador só aceita wss:// (WebSocket seguro). Troque ws:// por wss:// e use a porta segura do broker.");return}
   const pfx=$("pfx").value.trim()||"braco";
   setConn("wait","Conectando…");
   mq=mqtt.connect(url,{username:$("usr").value||undefined,password:$("pwd").value||undefined,
@@ -202,14 +244,14 @@ $("con").onclick=()=>{
   mq.on("reconnect",()=>{$("snd").checked=false;setConn("wait","Reconectando…")});
   mq.on("offline",()=>{$("snd").checked=false;setConn("off","Offline — modo simulação")});
   mq.on("close",()=>{$("snd").checked=false;if($("badge").dataset.state==="ok")setConn("wait","Conexão perdida…")});
-  mq.on("error",e=>setConn("off","Erro: "+e.message));
+  mq.on("error",e=>setConn("off","Erro de conexão",humanErr(e)));
   mq.on("message",(_,m)=>{logL("RX",m.toString());if(!$("mir").checked)return;
     try{const d=JSON.parse(m.toString());J.forEach(([k])=>{if(typeof d[k]==="number")S[k]=d[k]});mode="mirror"}catch(e){}});
 };
 $("mir").onchange=()=>{if($("mir").checked)$("snd").checked=false;else mode="manual"};
 $("snd").onchange=()=>{
   if($("snd").checked){
-    if(estop){$("snd").checked=false;say("⛔ Rearme o E-STOP antes de enviar.");return}
+    if(estop){$("snd").checked=false;say("⛔ Rearme a parada de emergência antes de enviar.");return}
     if(!mq||!mq.connected){$("snd").checked=false;say("⚠️ Conecte ao broker MQTT primeiro.");return}
     if(!confirm("Enviar comandos ao ROBÔ REAL?\nConfirme que a área ao redor do braço está livre.")){$("snd").checked=false;return}
     $("mir").checked=false;
@@ -247,19 +289,26 @@ function handsStep(scene,xrCam,dt){
 
 // ---------- Profissional: status, E-STOP, demo guiada, telemetria, apresentação ----------
 const hideLoad=()=>{$("loadc").style.display="none"};
+let toastT=0;function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toastT);toastT=setTimeout(()=>{e.style.display="none"},6000)}
+function humanErr(e){const m=String(e&&e.message||e||"");
+  if(/not authorized|bad user|password|credentials/i.test(m))return"O broker recusou o usuário ou a senha. Confira as credenciais.";
+  if(/timeout/i.test(m))return"O broker não respondeu a tempo. Verifique a URL, a porta e a internet.";
+  return"Não foi possível conectar"+(m?" ("+m+")":"")+". Confira a URL (wss:// e porta WebSocket seguro, ex.: 8884) e a internet."}
+function setHelp(on){$("help").classList.toggle("on",on)}
+$("helpb").onclick=()=>setHelp(!$("help").classList.contains("on"));$("helpx").onclick=()=>setHelp(false);
 let estop=false,camRef=null;
-function setConn(st,t){const b=$("badge");b.dataset.state=st;b.textContent="● "+t;$("mq").textContent=t}
+function setConn(st,t,detail){const b=$("badge");b.dataset.state=st;b.textContent="● "+t;$("mq").textContent=detail||t;if(detail)say("⚠️ "+detail)}
 const lastLog={TX:0,RX:0};
 function logL(d,t,force){const n=performance.now();if(!force&&n-lastLog[d]<1000)return;lastLog[d]=n;
   const el=$("log"),ts=new Date().toLocaleTimeString("pt-BR");
   el.textContent=(ts+" "+d+" "+t.slice(0,90)+"\n"+el.textContent).split("\n").slice(0,30).join("\n")}
 function setEstop(on){
   estop=on;document.body.classList.toggle("estop",on);
-  $("estop").textContent=on?"↺ REARMAR":"⛔ E-STOP";
-  if(on){demo=false;$("demo").textContent="▶ Demo";$("snd").checked=false}
+  $("estop").textContent=on?"↺ REARMAR":"⛔ PARADA";
+  if(on){demo=false;$("demo").textContent="▶ Demonstração";$("snd").checked=false}
   if(mq&&mq.connected)mq.publish(($("pfx").value.trim()||"braco")+"/estop",on?"1":"0",{qos:1});
   logL("TX",on?"ESTOP=1":"ESTOP=0",true);
-  say(on?"⛔ E-STOP acionado — envio bloqueado. Use REARMAR para liberar.":"Rearmado. Reative o envio ao robô se necessário.")}
+  say(on?"⛔ Parada de emergência acionada — envio bloqueado. Use REARMAR para liberar.":"Rearmado. Reative o envio ao robô se necessário.")}
 $("estop").onclick=()=>setEstop(!estop);
 
 const PH=[["waist","Cintura","gira a base"],["shoulder","Ombro","eleva o braço"],["elbow","Cotovelo","estende e flexiona"],
@@ -275,7 +324,7 @@ function demoStep(dt){
 const HIST=J.map(()=>[]),COL=["#ff6b6b","#ffa94d","#ffe066","#69db7c","#4dabf7"];
 $("telleg").innerHTML=J.map(([k,l],i)=>`<span style="color:${COL[i]}">${l} <b id="tv_${k}">0°</b></span>`).join("");
 function hud(){
-  const tag=demo?"Demo guiada":inXR?"VR · mãos":mode==="mirror"?"Espelho do robô":($("snd").checked&&!estop)?"Enviando ao robô":"Manual";
+  const tag=demo?"Demonstração guiada":inXR?"VR · mãos":mode==="mirror"?"Espelho do robô":($("snd").checked&&!estop)?"Enviando ao robô":"Manual";
   const mt=$("modetag");if(mt.textContent!==tag)mt.textContent=tag;
   if(!demo)cap("");
   J.forEach(([k],i)=>{const h=HIST[i];h.push(S[k]);if(h.length>200)h.shift()});
@@ -301,9 +350,11 @@ function initViews(cam){
       if(p==="alpha"){const d=v[0]-cam.alpha;to=cam.alpha+((((d+PI)%(2*PI))+2*PI)%(2*PI)-PI)}
       B.Animation.CreateAndStartAnimation("cv_"+p,cam,p,60,36,cam[p],to,0,ez)})})}
 addEventListener("keydown",e=>{
-  const tg=e.target,tn=tg.tagName;
+  const tg=e.target,tn=tg.tagName;if(e.ctrlKey||e.metaKey||e.altKey)return;
   if((tn==="INPUT"&&tg.type!=="range"&&tg.type!=="checkbox")||tn==="TEXTAREA")return;
-  if(e.key==="Escape")setEstop(true);
+  if(e.key==="Escape"){if($("help").classList.contains("on"))setHelp(false);else if(document.body.classList.contains("pres"))setPres(false)}
+  else if(e.key==="e"||e.key==="E")setEstop(true);
+  else if(e.key==="h"||e.key==="H"||e.key==="?")setHelp(!$("help").classList.contains("on"));
   else if(e.key==="p"||e.key==="P")setPres(!document.body.classList.contains("pres"));
   else if(e.key===" "&&tn!=="BUTTON"){e.preventDefault();$("demo").click()}
   else if(e.key==="f"||e.key==="F"){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}});
@@ -391,7 +442,7 @@ function tick(dt){
     const stage=new B.TransformNode("stage",scene);stage.scaling.setAll(k);
     stage.position.set(0-k*K.W[0],.7-k*min.y,-1.3-k*K.W[2]);root.parent=stage;
     pose=buildRig(scene,stage,K);hideLoad();
-    say("✔ Arraste para orbitar. Sliders, ▶ Demo, ou entre em VR (mãos).");
+    say("✔ Arraste para orbitar. Sliders, ▶ Demonstração, ou entre em VR (mãos).");
   }catch(e){hideLoad();console.error(e);say("❌ Modelo (precisa de HTTP/HTTPS, não file://): "+(e.message||e));return}
 
   try{ // C) WebXR isolado
