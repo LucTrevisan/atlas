@@ -3,8 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#171c26">
-<meta name="description" content="Gêmeo digital de braço robótico em Babylon.js com controle VR, MQTT e ESP32">
 <title>Braço Robótico VR + MQTT</title>
 <style>
 :root{--fg:#1c2230;--panel:rgba(255,255,255,.9);--acc:#e8590c}
@@ -23,50 +21,13 @@ button.o{background:transparent;color:var(--fg);border:1px solid currentColor}
 label{display:block;margin:3px 0}
 details{margin-top:6px}summary{cursor:pointer;font-weight:600}
 #st,#mq{font-size:11px;opacity:.85;margin-top:4px;min-height:1.2em}
-#ui{top:64px;bottom:auto;width:260px;max-height:calc(100% - 84px);backdrop-filter:blur(8px)}
-#bar{position:absolute;top:8px;left:8px;right:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
-#bar .ttl{font-weight:700;font-size:14px;margin-right:auto}#bar small{font-weight:400;opacity:.6;margin-left:6px}
-#bar button{flex:none;padding:6px 12px}
-#badge,#modetag{font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;background:#8883;white-space:nowrap}
-#badge[data-state=ok]{color:#37b24d;background:#37b24d22}
-#badge[data-state=wait]{color:#f59f00;background:#f59f0022;animation:bl 1s infinite}
-#badge[data-state=off]{color:#868e96}
-@keyframes bl{50%{opacity:.45}}
-#estop{background:#c92a2a;box-shadow:0 0 0 2px #fff4 inset;letter-spacing:.5px}
-body.estop #estop{background:#f59f00;color:#111}
-#presb.on{background:var(--acc);color:#fff}
-#estopBanner{display:none;position:absolute;top:58px;left:50%;transform:translateX(-50%);padding:6px 16px;border-radius:99px;background:#c92a2a;color:#fff;font-weight:700;z-index:2}
-body.estop #estopBanner{display:block}
-#cap{display:none;position:absolute;bottom:18px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:99px;background:var(--panel);font-size:15px;font-weight:600;pointer-events:none;text-align:center}
-#tel{display:none;position:absolute;right:8px;bottom:8px;width:300px;padding:8px;border-radius:12px;background:var(--panel)}
-body.pres #tel{display:block}body.pres #ui{display:none}
-#telc{width:100%;display:block}
-#telleg{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11px;margin-top:4px}
-#loadc{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:14px 22px;border-radius:12px;background:var(--panel);text-align:center;pointer-events:none}
-.pb{height:6px;width:200px;border-radius:9px;background:#8884;margin-top:8px;overflow:hidden}
-.pb i{display:block;height:100%;width:8%;background:var(--acc);transition:width .2s}
-.vw{flex-wrap:wrap}.vw button{flex:1 0 45%;padding:4px;font-size:11px}
-#log{font:10px/1.35 ui-monospace,monospace;max-height:110px;overflow:auto;margin:4px 0 0;white-space:pre;opacity:.8}
-@media(max-width:600px){#bar small{display:none}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="bar">
-  <span class="ttl">🦾 Braço Robótico<small>VR · MQTT · ESP32</small></span>
-  <span id="modetag">Manual</span>
-  <span id="badge" data-state="off">● Simulação (offline)</span>
-  <button id="estop" title="E-STOP (Esc)">⛔ E-STOP</button>
-  <button id="presb" class="o" title="Modo apresentação (P)">📽</button>
-</div>
-<div id="estopBanner">⛔ E-STOP ATIVO — envio ao robô bloqueado</div>
-<div id="cap"></div>
-<div id="tel"><canvas id="telc" width="300" height="120"></canvas><div id="telleg"></div></div>
-<div id="loadc"><div>Carregando modelo 3D…</div><div class="pb"><i id="pbi"></i></div></div>
 <div id="ui">
-  <h1>Controle das articulações</h1>
+  <h1>🦾 Braço Robótico</h1>
   <div id="sl"></div>
-  <div class="b vw"><button class="o" data-v="front">Frontal</button><button class="o" data-v="side">Lateral</button><button class="o" data-v="top">Topo</button><button class="o" data-v="zoom">Detalhe</button></div>
   <div class="b"><button id="demo">▶ Demo</button><button id="rst" class="o">Reset</button></div>
   <details><summary>MQTT / ESP32</summary>
     <input id="url" type="text" placeholder="wss://broker:8884/mqtt">
@@ -77,7 +38,6 @@ body.pres #tel{display:block}body.pres #ui{display:none}
     <label><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
     <div class="b"><button id="con">Conectar</button></div>
     <div id="mq">desconectado</div>
-    <pre id="log"></pre>
   </details>
   <div id="st">Carregando modelo…</div>
 </div>
@@ -195,30 +155,21 @@ $("con").onclick=()=>{
   if(mq){mq.end(true);mq=null}
   const url=$("url").value.trim();if(!url){$("mq").textContent="informe a URL wss://";return}
   const pfx=$("pfx").value.trim()||"braco";
-  setConn("wait","Conectando…");
+  $("mq").textContent="conectando…";
   mq=mqtt.connect(url,{username:$("usr").value||undefined,password:$("pwd").value||undefined,
-    clientId:"vr-"+Math.random().toString(16).slice(2,8),reconnectPeriod:3000,connectTimeout:6000});
-  mq.on("connect",()=>{setConn("ok","Conectado ao broker");mq.subscribe(pfx+"/estado")});
-  mq.on("reconnect",()=>{$("snd").checked=false;setConn("wait","Reconectando…")});
-  mq.on("offline",()=>{$("snd").checked=false;setConn("off","Offline — modo simulação")});
-  mq.on("close",()=>{$("snd").checked=false;if($("badge").dataset.state==="ok")setConn("wait","Conexão perdida…")});
-  mq.on("error",e=>setConn("off","Erro: "+e.message));
-  mq.on("message",(_,m)=>{logL("RX",m.toString());if(!$("mir").checked)return;
+    clientId:"vr-"+Math.random().toString(16).slice(2,8),reconnectPeriod:3000});
+  mq.on("connect",()=>{$("mq").textContent="✔ conectado";mq.subscribe(pfx+"/estado")});
+  mq.on("close",()=>$("mq").textContent="desconectado");
+  mq.on("error",e=>$("mq").textContent="erro: "+e.message);
+  mq.on("message",(_,m)=>{if(!$("mir").checked)return;
     try{const d=JSON.parse(m.toString());J.forEach(([k])=>{if(typeof d[k]==="number")S[k]=d[k]});mode="mirror"}catch(e){}});
 };
 $("mir").onchange=()=>{if($("mir").checked)$("snd").checked=false;else mode="manual"};
-$("snd").onchange=()=>{
-  if($("snd").checked){
-    if(estop){$("snd").checked=false;say("⛔ Rearme o E-STOP antes de enviar.");return}
-    if(!mq||!mq.connected){$("snd").checked=false;say("⚠️ Conecte ao broker MQTT primeiro.");return}
-    if(!confirm("Enviar comandos ao ROBÔ REAL?\nConfirme que a área ao redor do braço está livre.")){$("snd").checked=false;return}
-    $("mir").checked=false;
-  }
-  if(mode==="mirror")mode="manual"};
+$("snd").onchange=()=>{if($("snd").checked)$("mir").checked=false;if(mode==="mirror")mode="manual"};
 setInterval(()=>{
-  if(estop||!mq||!mq.connected||!$("snd").checked)return;
+  if(!mq||!mq.connected||!$("snd").checked)return;
   const o={};J.forEach(([k])=>o[k]=Math.round(S[k]*10)/10);
-  mq.publish(($("pfx").value.trim()||"braco")+"/cmd",JSON.stringify(o),{qos:0});logL("TX",JSON.stringify(o));
+  mq.publish(($("pfx").value.trim()||"braco")+"/cmd",JSON.stringify(o),{qos:0});
 },1000/CFG.sendHz);
 
 // ---------- Hand tracking → IK ----------
@@ -245,75 +196,14 @@ function handsStep(scene,xrCam,dt){
     let dv=a[n]-S[n]; if(n==="waist")dv=((dv+540)%360)-180; S[n]+=dv*k;});
 }
 
-// ---------- Profissional: status, E-STOP, demo guiada, telemetria, apresentação ----------
-const hideLoad=()=>{$("loadc").style.display="none"};
-let estop=false,camRef=null;
-function setConn(st,t){const b=$("badge");b.dataset.state=st;b.textContent="● "+t;$("mq").textContent=t}
-const lastLog={TX:0,RX:0};
-function logL(d,t,force){const n=performance.now();if(!force&&n-lastLog[d]<1000)return;lastLog[d]=n;
-  const el=$("log"),ts=new Date().toLocaleTimeString("pt-BR");
-  el.textContent=(ts+" "+d+" "+t.slice(0,90)+"\n"+el.textContent).split("\n").slice(0,30).join("\n")}
-function setEstop(on){
-  estop=on;document.body.classList.toggle("estop",on);
-  $("estop").textContent=on?"↺ REARMAR":"⛔ E-STOP";
-  if(on){demo=false;$("demo").textContent="▶ Demo";$("snd").checked=false}
-  if(mq&&mq.connected)mq.publish(($("pfx").value.trim()||"braco")+"/estop",on?"1":"0",{qos:1});
-  logL("TX",on?"ESTOP=1":"ESTOP=0",true);
-  say(on?"⛔ E-STOP acionado — envio bloqueado. Use REARMAR para liberar.":"Rearmado. Reative o envio ao robô se necessário.")}
-$("estop").onclick=()=>setEstop(!estop);
-
-const PH=[["waist","Cintura","gira a base"],["shoulder","Ombro","eleva o braço"],["elbow","Cotovelo","estende e flexiona"],
-          ["pitch","Pulso","inclina a garra"],["grip","Garra","abre e fecha"],["all","Movimento combinado","todas as juntas"]];
-const AMP={waist:[70,.6],shoulder:[35,.9],elbow:[55,1],pitch:[40,1.2],grip:[15,2]};
-const cap=t=>{const e=$("cap");if(e.textContent!==t)e.textContent=t;e.style.display=t?"block":"none"};
-function demoStep(dt){
-  const t=performance.now()/1000-t0,i=Math.floor(t/5)%PH.length,ph=PH[i],k=1-Math.pow(.02,dt);
-  J.forEach(([n])=>{const on=ph[0]==="all"||ph[0]===n,[a,f]=AMP[n];
-    S[n]+=((on?a*Math.sin(t*f):0)+(n==="grip"?15:0)-S[n])*k});
-  cap("Etapa "+(i+1)+"/"+PH.length+" · "+ph[1]+" — "+ph[2])}
-
-const HIST=J.map(()=>[]),COL=["#ff6b6b","#ffa94d","#ffe066","#69db7c","#4dabf7"];
-$("telleg").innerHTML=J.map(([k,l],i)=>`<span style="color:${COL[i]}">${l} <b id="tv_${k}">0°</b></span>`).join("");
-function hud(){
-  const tag=demo?"Demo guiada":inXR?"VR · mãos":mode==="mirror"?"Espelho do robô":($("snd").checked&&!estop)?"Enviando ao robô":"Manual";
-  const mt=$("modetag");if(mt.textContent!==tag)mt.textContent=tag;
-  if(!demo)cap("");
-  J.forEach(([k],i)=>{const h=HIST[i];h.push(S[k]);if(h.length>200)h.shift()});
-  if(!document.body.classList.contains("pres"))return;
-  const c=$("telc"),g=c.getContext("2d"),W=c.width,H=c.height;g.clearRect(0,0,W,H);
-  g.strokeStyle="#ffffff22";g.lineWidth=1;
-  for(let y=0;y<=4;y++){g.beginPath();g.moveTo(0,y*H/4);g.lineTo(W,y*H/4);g.stroke()}
-  J.forEach(([k,,mn,mx],i)=>{g.strokeStyle=COL[i];g.lineWidth=1.6;g.beginPath();
-    HIST[i].forEach((v,x)=>{const px=x*W/199,py=H-((v-mn)/(mx-mn))*H;x?g.lineTo(px,py):g.moveTo(px,py)});g.stroke();
-    $("tv_"+k).textContent=Math.round(S[k])+"°"})}
-
-function setPres(on){
-  document.body.classList.toggle("pres",on);$("presb").classList.toggle("on",on);
-  if(camRef){camRef.useAutoRotationBehavior=on;
-    if(on){const a=camRef.autoRotationBehavior;a.idleRotationSpeed=.15;a.idleRotationWaitTime=2500;a.idleRotationSpinupTime=1500}}}
-$("presb").onclick=()=>setPres(!document.body.classList.contains("pres"));
-function initViews(cam){
-  const A0=cam.alpha,R0=cam.radius,PI=Math.PI;
-  const V={front:[A0,1.15,R0],side:[A0+PI/2,1.2,R0],top:[A0,.12,R0*1.1],zoom:[A0-.4,1.25,1.2]};
-  const ez=new B.CubicEase();ez.setEasingMode(B.EasingFunction.EASINGMODE_EASEINOUT);
-  document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{const v=V[b.dataset.v];
-    ["alpha","beta","radius"].forEach((p,i)=>{let to=v[i];
-      if(p==="alpha"){const d=v[0]-cam.alpha;to=cam.alpha+((((d+PI)%(2*PI))+2*PI)%(2*PI)-PI)}
-      B.Animation.CreateAndStartAnimation("cv_"+p,cam,p,60,36,cam[p],to,0,ez)})})}
-addEventListener("keydown",e=>{
-  const tg=e.target,tn=tg.tagName;
-  if((tn==="INPUT"&&tg.type!=="range"&&tg.type!=="checkbox")||tn==="TEXTAREA")return;
-  if(e.key==="Escape")setEstop(true);
-  else if(e.key==="p"||e.key==="P")setPres(!document.body.classList.contains("pres"));
-  else if(e.key===" "&&tn!=="BUTTON"){e.preventDefault();$("demo").click()}
-  else if(e.key==="f"||e.key==="F"){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}});
-
 let pose=null,xrCamRef=null,inXR=false,sceneRef=null;
 function tick(dt){
   if(!pose)return;
-  if(demo){demoStep(dt)}
+  if(demo){const t=performance.now()/1000-t0;
+    S.waist=70*Math.sin(t*.5);S.shoulder=35*Math.sin(t*.8)+5;S.elbow=55*Math.sin(t*1.1+1);
+    S.pitch=40*Math.sin(t*1.3);S.grip=15+15*Math.sin(t*2.2);}
   else if(inXR&&xrCamRef){handsStep(sceneRef,xrCamRef,dt)}
-  clampS();pose(S);if(demo||inXR||mode==="mirror")syncUI();hud();
+  clampS();pose(S);if(demo||inXR||mode==="mirror")syncUI();
 }
 
 (async()=>{
@@ -322,7 +212,7 @@ function tick(dt){
   const scene=new B.Scene(engine);sceneRef=scene;scene.useRightHandedSystem=true;
   scene.clearColor=new B.Color4(.05,.06,.08,1);
   const cam=new B.ArcRotateCamera("cam",-Math.PI/2.6,1.15,2.6,new B.Vector3(0,1.15,-1.3),scene);
-  cam.attachControl(canvas,true);camRef=cam;initViews(cam);cam.wheelPrecision=60;cam.lowerRadiusLimit=.6;cam.upperRadiusLimit=9;cam.minZ=.01;
+  cam.attachControl(canvas,true);cam.wheelPrecision=60;cam.lowerRadiusLimit=.6;cam.upperRadiusLimit=9;cam.minZ=.01;
   scene.createDefaultEnvironment({createSkybox:false,createGround:false});
   scene.fogMode=B.Scene.FOGMODE_LINEAR;scene.fogColor=new B.Color3(.55,.6,.66);scene.fogStart=6;scene.fogEnd=15;
   new B.HemisphericLight("h",new B.Vector3(0,1,0),scene).intensity=.75;
@@ -385,14 +275,14 @@ function tick(dt){
   engine.runRenderLoop(()=>{const n=performance.now();tick(Math.min(.05,(n-last)/1000));last=n;scene.render()});
 
   try{ // B) modelo (arquivo braco.glb ao lado do index.html)
-    const res=await B.SceneLoader.ImportMeshAsync("","./",CFG.modelUrl,scene,ev=>{if(ev.lengthComputable)$("pbi").style.width=Math.round(ev.loaded*100/ev.total)+"%"});
+    const res=await B.SceneLoader.ImportMeshAsync("","./",CFG.modelUrl,scene);
     const root=res.meshes[0],vm=res.meshes.filter(m=>m.getTotalVertices()>0);vm.forEach(m=>m.computeWorldMatrix(true));
     const {min,max}=B.Mesh.MinMax(vm),sz=max.subtract(min),k=1/Math.max(sz.x,sz.y,sz.z);
     const stage=new B.TransformNode("stage",scene);stage.scaling.setAll(k);
     stage.position.set(0-k*K.W[0],.7-k*min.y,-1.3-k*K.W[2]);root.parent=stage;
-    pose=buildRig(scene,stage,K);hideLoad();
+    pose=buildRig(scene,stage,K);
     say("✔ Arraste para orbitar. Sliders, ▶ Demo, ou entre em VR (mãos).");
-  }catch(e){hideLoad();console.error(e);say("❌ Modelo (precisa de HTTP/HTTPS, não file://): "+(e.message||e));return}
+  }catch(e){console.error(e);say("❌ Modelo (precisa de HTTP/HTTPS, não file://): "+(e.message||e));return}
 
   try{ // C) WebXR isolado
     const xr=await scene.createDefaultXRExperienceAsync({uiOptions:{sessionMode:"immersive-vr"},optionalFeatures:true});
@@ -403,7 +293,7 @@ function tick(dt){
       inXR=s===B.WebXRState.IN_XR;$("ui").style.display=inXR?"none":"";if(inXR){demo=false;mode="hands"}else if(mode==="hands")mode="manual"});
     say("✔ Pronto. Botão 🥽 para VR. Em VR: mão direita move o robô; PINÇA da mão esquerda = habilita.");
   }catch(e){say("⚠️ VR indisponível (precisa de HTTPS + navegador WebXR). A pré-visualização 3D funciona.")}
- }catch(err){hideLoad();console.error(err);say("❌ Erro: "+(err.message||err))}
+ }catch(err){console.error(err);say("❌ Erro: "+(err.message||err))}
 })();
 </script>
 </body>
