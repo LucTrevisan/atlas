@@ -3,78 +3,563 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#171c26">
-<meta name="description" content="Gêmeo digital de braço robótico em Babylon.js com controle VR, MQTT e ESP32">
-<title>Braço Robótico VR + MQTT</title>
+<meta name="theme-color" content="#020B18">
+<meta name="description" content="ATLAS — gêmeo digital de braço robótico em Babylon.js com WebXR (hand tracking), MQTT e ESP32">
+<title>ATLAS — Robotic Digital Twin</title>
 <style>
-:root{--fg:#1c2230;--panel:rgba(255,255,255,.9);--acc:#e8590c}
-@media (prefers-color-scheme:dark){:root{--fg:#e8ebf0;--panel:rgba(24,29,38,.9)}}
-html,body{height:100%;margin:0;background:#171c26;color:var(--fg);font:13px system-ui,sans-serif;overflow:hidden}
+/* ---------- ATLAS Design Tokens ---------- */
+:root{
+  --atlas-bg:#020B18;
+  --atlas-bg-secondary:#061426;
+  --atlas-panel:#071C32;
+  --atlas-panel-glass:rgba(5,22,42,.88);
+  --atlas-blue:#006CFF;
+  --atlas-blue-bright:#008CFF;
+  --atlas-cyan:#00D9FF;
+  --atlas-cyan-soft:#63E8FF;
+  --atlas-text:#F4FAFF;
+  --atlas-text-secondary:#91AFC5;
+  --atlas-success:#20E6A4;
+  --atlas-warning:#FFB020;
+  --atlas-danger:#FF334F;
+  --atlas-border:rgba(0,217,255,.35);
+  --atlas-blue-deep:#0052CC; /* base do gradiente dos botões: texto branco ≥ 4,6:1 (WCAG AA) */
+  --atlas-border-soft:rgba(0,217,255,.16);
+  --atlas-track:rgba(145,175,197,.22);
+  --atlas-glow:0 0 14px rgba(0,140,255,.35);
+  --atlas-chamfer:14px;
+  --atlas-font:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --atlas-font-mono:"Cascadia Mono",Consolas,ui-monospace,"SF Mono",monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text);font:13px/1.35 var(--atlas-font);overflow:hidden}
 #c{width:100%;height:100%;display:block;outline:none;touch-action:none}
-#ui{position:absolute;left:8px;bottom:8px;width:250px;max-height:92%;overflow:auto;padding:10px 12px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.3)}
-h1{font-size:13px;margin:0 0 6px}
-.r{display:grid;grid-template-columns:70px 1fr 36px;align-items:center;gap:6px;margin:3px 0}
-.r output{text-align:right;opacity:.7}
-input[type=range]{width:100%;accent-color:var(--acc)}
-input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0;padding:4px;border-radius:6px;border:1px solid #8886;background:transparent;color:inherit}
-.b{display:flex;gap:6px;margin:8px 0}
-button{flex:1;padding:6px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
-button.o{background:transparent;color:var(--fg);border:1px solid currentColor}
-label{display:block;margin:3px 0}
-details{margin-top:6px}summary{cursor:pointer;font-weight:600}
-#st,#mq{font-size:11px;opacity:.85;margin-top:4px;min-height:1.2em}
-#ui{top:64px;bottom:auto;width:260px;max-height:calc(100% - 84px);backdrop-filter:blur(8px)}
-#bar{position:absolute;top:8px;left:8px;right:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
-#bar .ttl{font-weight:700;font-size:14px;margin-right:auto}#bar small{font-weight:400;opacity:.6;margin-left:6px}
-#bar button{flex:none;padding:6px 12px}
-#badge,#modetag{font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;background:#8883;white-space:nowrap}
-#badge[data-state=ok]{color:#37b24d;background:#37b24d22}
-#badge[data-state=wait]{color:#f59f00;background:#f59f0022;animation:bl 1s infinite}
-#badge[data-state=off]{color:#868e96}
-@keyframes bl{50%{opacity:.45}}
-#estop{background:#c92a2a;box-shadow:0 0 0 2px #fff4 inset;letter-spacing:.5px}
-body.estop #estop{background:#f59f00;color:#111}
-#presb.on{background:var(--acc);color:#fff}
-#estopBanner{display:none;position:absolute;top:58px;left:50%;transform:translateX(-50%);padding:6px 16px;border-radius:99px;background:#c92a2a;color:#fff;font-weight:700;z-index:2}
-body.estop #estopBanner{display:block}
-#cap{display:none;position:absolute;bottom:18px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:99px;background:var(--panel);font-size:15px;font-weight:600;pointer-events:none;text-align:center}
-#tel{display:none;position:absolute;right:8px;bottom:8px;width:300px;padding:8px;border-radius:12px;background:var(--panel)}
-body.pres #tel{display:block}body.pres #ui{display:none}
+/* ---------- Shell: #ui envolve toda a interface (o app o oculta em VR) ---------- */
+#shell{position:fixed;inset:0;z-index:10;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);pointer-events:none}
+#ui{position:absolute;inset:0;pointer-events:none} /* contém o painel; a lógica o oculta em VR e no modo apresentação */
+.atlas-header,.atlas-bar,.panel,dialog{pointer-events:auto}
+.xr-button-overlay{z-index:30!important}
+
+/* ---------- Header ---------- */
+.atlas-header{display:flex;align-items:center;gap:18px;min-width:0;min-height:56px;padding:0 16px;
+  background:linear-gradient(180deg,rgba(2,11,24,.96),rgba(6,20,38,.90));
+  border-bottom:1px solid var(--atlas-border);box-shadow:0 1px 0 rgba(0,217,255,.08),0 6px 18px rgba(0,0,0,.35)}
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.brand-mark{font-size:22px;font-weight:800;letter-spacing:.24em;color:var(--atlas-text);
+  padding-right:12px;border-right:1px solid var(--atlas-border)}
+.brand-mark b{color:var(--atlas-cyan);font-weight:800}
+.brand-sub{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+.brand-stack{font-size:10px;letter-spacing:.06em;color:var(--atlas-text-secondary)}
+
+.tabs{display:flex;align-self:stretch;gap:2px;min-width:0;margin-left:auto}
+.tab{min-height:44px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;
+  color:var(--atlas-text-secondary);font:700 11px var(--atlas-font);letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s,background .15s}
+.tab:hover{color:var(--atlas-text);background:rgba(0,217,255,.05)}
+.tab[aria-selected=true]{color:var(--atlas-cyan);border-bottom-color:var(--atlas-cyan);
+  background:linear-gradient(0deg,rgba(0,217,255,.12),transparent 70%)}
+.tab:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+
+.chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--atlas-border-soft);
+  background:rgba(6,20,38,.8);color:var(--atlas-text-secondary);font:600 10.5px var(--atlas-font-mono);
+  letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.chip .k{color:var(--atlas-text-secondary)}
+.chip .v{color:var(--chip-c,var(--atlas-text-secondary))}
+.chip[data-s=ok]{--chip-c:var(--atlas-success);border-color:rgba(32,230,164,.45)}
+.chip[data-s=info]{--chip-c:var(--atlas-cyan);border-color:var(--atlas-border)}
+.chip[data-s=warn]{--chip-c:var(--atlas-warning);border-color:rgba(255,176,32,.5)}
+.chip[data-s=live]{--chip-c:#1a1000;background:var(--atlas-warning);border-color:var(--atlas-warning)}
+.chip[data-s=live] .k{color:#1a1000}
+.chip[data-s=danger]{--chip-c:var(--atlas-danger);border-color:rgba(255,51,79,.6)}
+.chip[hidden]{display:none}
+
+/* ---------- Área principal: Digital Twin livre + um painel contextual ---------- */
+.atlas-main{position:relative;min-height:0;padding:12px}
+.panel{position:absolute;left:12px;top:12px;width:340px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);box-sizing:border-box;
+  display:flex;flex-direction:column;
+  background:
+    linear-gradient(135deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) top left/18px 18px no-repeat,
+    linear-gradient(-45deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) bottom right/18px 18px no-repeat,
+    linear-gradient(var(--atlas-cyan),var(--atlas-cyan)) top right/28px 1.5px no-repeat,
+    linear-gradient(var(--atlas-cyan),var(--atlas-cyan)) bottom left/28px 1.5px no-repeat,
+    linear-gradient(180deg,rgba(0,108,255,.10),transparent 40%),
+    var(--atlas-panel-glass);
+  border:1px solid var(--atlas-border);
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer))}
+.panel[hidden]{display:none}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;
+  border-bottom:1px solid var(--atlas-border-soft)}
+.panel-head h2{margin:0;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+.panel-body{flex:1;min-height:0;overflow:auto;padding:10px 14px 14px;
+  scrollbar-width:thin;scrollbar-color:var(--atlas-border) transparent}
+.icon-btn{width:44px;height:36px;margin-right:-8px;border:0;background:transparent;color:var(--atlas-text-secondary);
+  font-size:20px;line-height:1;cursor:pointer}
+.icon-btn:hover{color:var(--atlas-cyan)}
+.icon-btn:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+section[role=tabpanel][hidden]{display:none}
+h3{margin:14px 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+h3:first-child{margin-top:0}
+.lead{margin:0 0 10px;font-size:11px;color:var(--atlas-text-secondary)}
+.lead b{color:var(--atlas-cyan-soft);font-weight:600}
+.hint{margin:10px 0 0;font-size:11px;color:var(--atlas-text-secondary)}
+.badge{display:inline-block;padding:2px 6px;border:1px solid var(--atlas-border);font:600 10px var(--atlas-font-mono);
+  letter-spacing:.08em;color:var(--atlas-cyan-soft)}
+.badge[data-s=warn]{border-color:rgba(255,176,32,.5);color:var(--atlas-warning)}
+
+/* Leituras (somente exibição) */
+.readout{margin:0;display:grid;grid-template-columns:1fr auto;gap:0}
+.readout dt,.readout dd{margin:0;padding:6px 0;border-bottom:1px solid var(--atlas-border-soft)}
+.readout dt{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.readout dt b{color:var(--atlas-cyan);font-weight:700;margin-right:6px}
+.readout dd{text-align:right;font:13px var(--atlas-font-mono);font-variant-numeric:tabular-nums;color:var(--atlas-text)}
+.readout.wide{grid-template-columns:auto minmax(0,1fr);column-gap:12px}
+.readout.wide dt{white-space:nowrap}
+.readout dd[data-s=ok]{color:var(--atlas-success)}
+.readout dd[data-s=warn]{color:var(--atlas-warning)}
+.readout dd[data-s=danger]{color:var(--atlas-danger)}
+.readout dd[data-s=off]{color:var(--atlas-text-secondary)}
+ol.steps{margin:0;padding-left:18px;color:var(--atlas-text)}
+ol.steps li{margin:4px 0}
+ol.steps li::marker{color:var(--atlas-cyan);font-family:var(--atlas-font-mono)}
+
+/* ---------- Controles existentes ---------- */
+/* Linha de junta: [J1 BASE ........ 32°] / [−180° ──●── +180°] */
+.r{display:grid;grid-template-columns:50px 1fr 50px;grid-template-areas:"lab lab val" "min rng max";
+  align-items:center;column-gap:10px;row-gap:0;margin:0;padding:8px 0 4px;border-bottom:1px solid var(--atlas-border-soft)}
+.r:last-child{border-bottom:0}
+.r>label,.r>span{grid-area:lab;margin:0;color:var(--atlas-text);font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.r>label b,.r>span b{display:inline-block;min-width:22px;margin-right:6px;color:var(--atlas-cyan);font:700 11.5px var(--atlas-font-mono)}
+.r output{grid-area:val;text-align:right;color:var(--atlas-cyan-soft);font:600 15px var(--atlas-font-mono);font-variant-numeric:tabular-nums}
+.r input{grid-area:rng}
+.r .lim{font:10px var(--atlas-font-mono);color:var(--atlas-text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.r .lim-min{grid-area:min}.r .lim-max{grid-area:max;text-align:right}
+.r .lim{overflow:hidden;text-overflow:clip}
+.r.is-grip .lim{font-family:var(--atlas-font);font-weight:600;letter-spacing:.08em}
+
+input[type=range]{--a:0%;--b:0%;width:100%;height:44px;margin:0;padding:0;background:transparent;cursor:pointer;
+  -webkit-appearance:none;appearance:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--atlas-track) 0 var(--a),var(--atlas-cyan) var(--a) var(--b),var(--atlas-track) var(--b) 100%)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--atlas-track) 0 var(--a),var(--atlas-cyan) var(--a) var(--b),var(--atlas-track) var(--b) 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;
+  background:var(--atlas-bg);border:2px solid var(--atlas-cyan);box-shadow:0 0 0 3px rgba(0,217,255,.15),var(--atlas-glow)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+  background:var(--atlas-bg);border:2px solid var(--atlas-cyan);box-shadow:0 0 0 3px rgba(0,217,255,.15),var(--atlas-glow)}
+input[type=range]:hover::-webkit-slider-thumb{background:var(--atlas-cyan-soft)}
+input[type=range]:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-6px}
+
+/* Aviso persistente de controle real (somente exibição) */
+.hotspots{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.hotspots[hidden]{display:none}
+.atlas-header,.atlas-main,.atlas-bar{position:relative;z-index:1}
+.hs{position:absolute;left:0;top:0;display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 7px 0 5px;
+  border:1px solid var(--atlas-border);background:rgba(2,11,24,.78);color:var(--atlas-cyan-soft);
+  font:700 10.5px var(--atlas-font-mono);letter-spacing:.06em;cursor:pointer;pointer-events:auto;white-space:nowrap;
+  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);will-change:transform}
+.hs::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--atlas-cyan);box-shadow:0 0 6px var(--atlas-cyan)}
+.hs:hover{background:rgba(0,108,255,.35);color:var(--atlas-text)}
+.hs[aria-pressed=true]{background:var(--atlas-cyan);color:var(--atlas-bg);border-color:var(--atlas-cyan)}
+.hs[aria-pressed=true]::before{background:var(--atlas-bg);box-shadow:none}
+.hs[data-off]{visibility:hidden}
+.hs:focus-visible{outline:2px solid var(--atlas-cyan-soft);outline-offset:2px}
+@media (pointer:coarse){.hs{min-height:32px;padding:0 10px 0 8px}}
+
+.joint-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px}
+.joint-picks button{min-width:44px;min-height:36px;padding:0 10px;border:1px solid var(--atlas-border);background:transparent;
+  color:var(--atlas-cyan-soft);font:700 11px var(--atlas-font-mono);letter-spacing:.06em;cursor:pointer}
+.joint-picks button:hover{background:rgba(0,217,255,.08)}
+.joint-picks button[aria-pressed=true]{background:var(--atlas-cyan);color:var(--atlas-bg);border-color:var(--atlas-cyan)}
+.joint-picks button:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+.readout dt.is-sel,.readout dd.is-sel{background:rgba(0,217,255,.08)}
+
+.sel-card{position:relative;margin:0 0 10px;padding:10px 12px;border:1px solid var(--atlas-cyan);
+  background:linear-gradient(180deg,rgba(0,217,255,.10),rgba(0,108,255,.04))}
+.sel-card[hidden]{display:none}
+.sel-card .sel-title{margin:0 0 6px;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-text)}
+.sel-card .sel-title b{color:var(--atlas-cyan);font-family:var(--atlas-font-mono)}
+.sel-card .readout dt,.sel-card .readout dd{padding:4px 0}
+.sel-card .icon-btn{position:absolute;right:4px;top:2px;margin:0;height:32px}
+.r.is-sel{box-shadow:inset 3px 0 0 var(--atlas-cyan);padding-left:10px;margin-left:-10px;background:linear-gradient(90deg,rgba(0,217,255,.08),transparent 70%)}
+
+.tele-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tele-table th{padding:4px 0;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-text-secondary);text-align:right;border-bottom:1px solid var(--atlas-border)}
+.tele-table th:first-child,.tele-table td:first-child{text-align:left}
+.tele-table td{padding:6px 0;border-bottom:1px solid var(--atlas-border-soft);text-align:right;font:13px var(--atlas-font-mono);color:var(--atlas-text)}
+.tele-table td:first-child{font:600 11px var(--atlas-font);letter-spacing:.06em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.tele-table td:first-child b{color:var(--atlas-cyan);font-weight:700;margin-right:6px}
+.tele-table td.fb{color:var(--atlas-success)}
+.tele-table td.fb[data-s=off]{color:var(--atlas-text-secondary)}
+.tele-table td.fb[data-s=warn]{color:var(--atlas-warning)}
+
+.conn-box{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;margin:0 0 12px;padding:10px 12px;
+  border:1px solid var(--atlas-border-soft);background:rgba(6,20,38,.7)}
+.conn-box .dot{grid-row:span 2;width:10px;height:10px;border-radius:50%;background:var(--atlas-text-secondary)}
+.conn-box[data-s=ok]{border-color:rgba(32,230,164,.45)}.conn-box[data-s=ok] .dot{background:var(--atlas-success);box-shadow:0 0 8px var(--atlas-success)}
+.conn-box[data-s=warn]{border-color:rgba(255,176,32,.5)}.conn-box[data-s=warn] .dot{background:var(--atlas-warning)}
+.conn-box[data-s=danger]{border-color:rgba(255,51,79,.6)}.conn-box[data-s=danger] .dot{background:var(--atlas-danger)}
+.conn-box .t{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.conn-box[data-s=ok] .t{color:var(--atlas-success)}.conn-box[data-s=warn] .t{color:var(--atlas-warning)}.conn-box[data-s=danger] .t{color:var(--atlas-danger)}
+.conn-box #mq{grid-column:2}
+.conn-box .why{grid-column:2;font-size:11px;line-height:1.4;color:var(--atlas-text-secondary)}
+.b button:disabled{opacity:.4;cursor:not-allowed;filter:none;box-shadow:none}
+.conn-box .hst{text-transform:none;letter-spacing:0;font-weight:500;color:var(--atlas-text-secondary)}
+.pw-row{position:relative}
+.pw-row input{padding-right:64px}
+.pw-row button{position:absolute;right:2px;top:4px;height:30px;min-width:56px;border:0;background:transparent;color:var(--atlas-cyan-soft);
+  font:600 10px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.pw-row button:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+.field-hint{margin:-2px 0 8px;font-size:10.5px;color:var(--atlas-text-secondary)}
+.field-hint[data-s=warn]{color:var(--atlas-warning)}
+.opt-desc{margin:-8px 0 4px 24px;font-size:10.5px;color:var(--atlas-text-secondary)}
+.topics{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11px}
+.topics dt{color:var(--atlas-text-secondary);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;padding-top:2px}
+.topics dd{margin:0;font-family:var(--atlas-font-mono);color:var(--atlas-text);overflow-wrap:anywhere}
+.topics dd small{display:block;color:var(--atlas-text-secondary);font-family:var(--atlas-font)}
+details.help{margin-top:12px;border-top:1px solid var(--atlas-border-soft);padding-top:8px}
+details.help summary{cursor:pointer;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-cyan-soft);min-height:32px;display:flex;align-items:center}
+details.help p{margin:4px 0;font-size:11px;color:var(--atlas-text-secondary)}
+details.help summary:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+
+.live-banner{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;padding:8px 10px;
+  border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.10);color:var(--atlas-warning);font-size:11.5px}
+.live-banner[hidden]{display:none}
+.live-banner b{display:block;letter-spacing:.08em;text-transform:uppercase}
+.live-banner span{color:var(--atlas-text)}
+
+/* Diálogo de confirmação */
+dialog.atlas-dialog{max-width:min(420px,calc(100vw - 32px));padding:0;border:1px solid rgba(255,51,79,.6);color:var(--atlas-text);
+  background:linear-gradient(180deg,rgba(255,51,79,.10),transparent 35%),var(--atlas-panel);
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer))}
+dialog.atlas-dialog::backdrop{background:rgba(2,11,24,.72);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.atlas-dialog .dlg-body{padding:16px 18px 6px}
+.atlas-dialog h2{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-danger)}
+.atlas-dialog p{margin:0 0 8px;font-size:12.5px;line-height:1.5}
+.atlas-dialog ul{margin:0 0 8px;padding-left:18px;font-size:12px;color:var(--atlas-text-secondary)}
+.atlas-dialog .b{padding:0 18px 16px;margin:6px 0 0}
+.b button.danger{background:var(--atlas-danger);border-color:var(--atlas-danger);color:var(--atlas-bg)} /* texto escuro: 5,5:1 (branco seria 3,6:1) */
+input[type=checkbox]{accent-color:var(--atlas-blue-bright);width:16px;height:16px;margin:0 8px 0 0;vertical-align:-3px}
+input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 8px;border-radius:2px;
+  border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);color:var(--atlas-text);font:12px var(--atlas-font-mono)}
+input[type=text]::placeholder,input[type=password]::placeholder{color:var(--atlas-text-secondary);opacity:.7}
+input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--atlas-cyan);box-shadow:var(--atlas-glow)}
+.field{display:block;margin:0;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.check{display:flex;align-items:center;min-height:44px;margin:2px 0;color:var(--atlas-text);cursor:pointer}
+.b{display:flex;gap:6px;margin:10px 0}
+.b button{flex:1;min-height:44px;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
+  background:linear-gradient(180deg,var(--atlas-blue),var(--atlas-blue-deep));color:#fff;
+  font:600 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+  transition:filter .15s,box-shadow .15s}
+.b button:hover{box-shadow:var(--atlas-glow),inset 0 0 0 1px var(--atlas-cyan-soft)} /* sem clarear o fundo: mantém o contraste AA */
+.b button.o{background:transparent;color:var(--atlas-cyan-soft);border:1px solid var(--atlas-border)}
+.b button.o:hover{background:rgba(0,217,255,.08)}
+.b button:focus-visible,input:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+#mq{font:11px var(--atlas-font-mono);min-height:1.2em;color:var(--atlas-text-secondary)}
+
+/* ---------- Barra inferior ---------- */
+.atlas-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:30px;padding:0 16px;
+  background:rgba(2,11,24,.92);border-top:1px solid var(--atlas-border-soft)}
+#st{font-size:11px;color:var(--atlas-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chain{font:10.5px var(--atlas-font-mono);letter-spacing:.04em;color:var(--atlas-text-secondary);white-space:nowrap}
+.chain b{color:var(--atlas-cyan-soft);font-weight:600}
+
+/* ---------- Tablet ---------- */
+@media (max-width:1180px){
+  .brand-stack{display:none}
+  .tab{padding:0 9px;letter-spacing:.08em}
+  .chain{display:none}
+}
+@media (max-width:980px){
+  .atlas-header{flex-wrap:wrap;gap:4px 12px;padding:6px 12px 0}
+  .chips{margin-left:auto}
+  .tabs{order:3;flex-basis:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}
+  .panel{width:320px}
+}
+/* ---------- Mobile: Digital Twin dominante, painel como bottom sheet ---------- */
+@media (max-width:640px){
+  .brand-sub{display:none}
+  .brand-mark{font-size:18px;border-right:0;padding-right:0}
+  .chip{padding:3px 6px;font-size:9.5px;gap:4px}
+  #chip-xr{display:none} /* VR: detalhado na aba WebXR; header mais baixo no celular */
+  .chips{gap:4px}
+  .atlas-main{padding:0}
+  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:42vh;
+    clip-path:polygon(var(--atlas-chamfer) 0,calc(100% - var(--atlas-chamfer)) 0,100% var(--atlas-chamfer),100% 100%,0 100%,0 var(--atlas-chamfer))}
+  .atlas-bar{padding:0 12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- Elementos da versão main (E-STOP, demo guiada, apresentação, ajuda…) ---------- */
+#modetag,#badge{display:none} /* substituídos pelos chips ATLAS (continuam atualizados pela lógica) */
+.hdr-actions{display:flex;align-items:center;gap:6px}
+.hdr-btn{min-width:44px;min-height:36px;padding:0 10px;border:1px solid var(--atlas-border);background:transparent;color:var(--atlas-cyan-soft);
+  font:700 13px var(--atlas-font);cursor:pointer;clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px)}
+.hdr-btn:hover{background:rgba(0,217,255,.08)}
+.hdr-btn.on{background:var(--atlas-cyan);color:var(--atlas-bg);border-color:var(--atlas-cyan)}
+.hdr-btn:focus-visible,#estop:focus-visible{outline:2px solid var(--atlas-cyan-soft);outline-offset:2px}
+#estop{min-height:40px;padding:0 14px;border:2px solid var(--atlas-danger);background:var(--atlas-danger);color:var(--atlas-bg);
+  font:800 12.5px var(--atlas-font);letter-spacing:.1em;cursor:pointer;box-shadow:0 0 14px rgba(255,51,79,.35);
+  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+#estop:hover{box-shadow:0 0 22px rgba(255,51,79,.6)}
+body.estop #estop{background:var(--atlas-warning);border-color:var(--atlas-warning);color:#1a1000}
+#estopBanner{display:none;position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:20;align-items:center;gap:16px;
+  padding:12px 16px 12px 20px;border:2px solid var(--atlas-danger);background:rgba(40,4,12,.94);color:var(--atlas-text);
+  box-shadow:0 0 28px rgba(255,51,79,.45);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+body.estop #estopBanner{display:flex}
+#estopBanner b{display:block;color:var(--atlas-danger);font-size:15px;font-weight:800;letter-spacing:.12em}
+#estopBanner span{font-size:12px;color:var(--atlas-text)}
+#estop-rearm{min-height:44px;padding:0 16px;border:1px solid var(--atlas-warning);background:var(--atlas-warning);color:#1a1000;
+  font:800 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+#estop-rearm:focus-visible{outline:2px solid var(--atlas-text);outline-offset:2px}
+#cap{display:none;position:fixed;bottom:44px;left:50%;transform:translateX(-50%);z-index:12;max-width:calc(100% - 32px);
+  padding:10px 20px;border:1px solid var(--atlas-cyan);background:rgba(2,11,24,.9);color:var(--atlas-text);
+  font:700 14px var(--atlas-font);letter-spacing:.06em;text-align:center;pointer-events:none;
+  clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+#cap::before{content:"MODO DEMONSTRAÇÃO";display:block;margin-bottom:3px;font:700 10px var(--atlas-font-mono);letter-spacing:.16em;color:var(--atlas-cyan)}
+#toast{display:none;position:fixed;bottom:96px;left:50%;transform:translateX(-50%);z-index:21;max-width:min(560px,calc(100% - 24px));
+  padding:10px 16px;border:1px solid var(--atlas-warning);background:rgba(2,11,24,.95);color:var(--atlas-text);font-weight:600;text-align:center}
+#help{display:none;position:fixed;top:68px;right:12px;z-index:22;width:min(360px,calc(100% - 24px));max-height:calc(100% - 120px);overflow:auto;
+  padding:14px 16px;border:1px solid var(--atlas-border);background:var(--atlas-panel-glass);color:var(--atlas-text);font-size:12.5px;
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer))}
+#help.on{display:block}
+#help h2{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+#help h3{margin:12px 0 4px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+#help p,#help ol{margin:4px 0}#help ol{padding-left:18px}#help table{border-collapse:collapse;width:100%}
+#help td{padding:4px;border-bottom:1px solid var(--atlas-border-soft)}
+#help kbd{padding:0 6px;border:1px solid var(--atlas-border);font:11px var(--atlas-font-mono);color:var(--atlas-cyan-soft)}
+#helpx{position:absolute;top:6px;right:6px;min-width:44px;min-height:36px;border:0;background:transparent;color:var(--atlas-text-secondary);font-size:16px;cursor:pointer}
+#tel{display:none;position:fixed;right:12px;bottom:44px;z-index:12;width:300px;padding:10px;border:1px solid var(--atlas-border);background:rgba(2,11,24,.9)}
+body.pres #tel{display:block}body.pres #ui{display:none}body.pres .hotspots{display:none}
 #telc{width:100%;display:block}
-#telleg{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11px;margin-top:4px}
-#loadc{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:14px 22px;border-radius:12px;background:var(--panel);text-align:center;pointer-events:none}
-.pb{height:6px;width:200px;border-radius:9px;background:#8884;margin-top:8px;overflow:hidden}
-.pb i{display:block;height:100%;width:8%;background:var(--acc);transition:width .2s}
-.vw{flex-wrap:wrap}.vw button{flex:1 0 45%;padding:4px;font-size:11px}
-#log{font:10px/1.35 ui-monospace,monospace;max-height:110px;overflow:auto;margin:4px 0 0;white-space:pre;opacity:.8}
-@media(max-width:600px){#bar small{display:none}}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #4dabf7;outline-offset:2px}
-button{min-height:34px}.r label{margin:0}
-@media(pointer:coarse){button{min-height:44px}input[type=range]{height:28px}}
-.f{font-size:11px;opacity:.85;margin-top:6px}.hint{font-size:10px;opacity:.7;margin:2px 0}
-#toast{display:none;position:absolute;bottom:64px;left:50%;transform:translateX(-50%);max-width:min(560px,calc(100% - 24px));padding:8px 16px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.4);font-weight:600;text-align:center;z-index:3}
-#help{display:none;position:absolute;top:64px;right:8px;width:min(340px,calc(100% - 16px));max-height:calc(100% - 84px);overflow:auto;padding:12px 14px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(8px);font-size:12px;z-index:3}
-#help.on{display:block}#help h2{font-size:15px;margin:0 0 6px}#help h3{font-size:12px;margin:10px 0 3px}
-#help p,#help ol{margin:3px 0}#help ol{padding-left:18px}#help table{border-collapse:collapse;width:100%}
-#help td{padding:2px 4px;border-bottom:1px solid #8883}#help kbd{padding:0 6px;border:1px solid #8886;border-radius:4px;font:11px ui-monospace,monospace}
-#helpx{position:absolute;top:8px;right:8px;flex:none;padding:2px 10px;min-height:0}
+#telleg{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:6px;font:11px var(--atlas-font-mono)}
+#loadc{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;padding:18px 26px;border:1px solid var(--atlas-border);
+  background:rgba(2,11,24,.94);color:var(--atlas-text);text-align:center;pointer-events:none;font-weight:600;letter-spacing:.06em}
+.pb{height:4px;width:220px;margin-top:10px;background:var(--atlas-track);overflow:hidden}
+.pb i{display:block;height:100%;width:8%;background:var(--atlas-cyan);box-shadow:0 0 8px var(--atlas-cyan);transition:width .2s}
+.views{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 6px}
+.views button{min-height:40px;border:1px solid var(--atlas-border);background:transparent;color:var(--atlas-cyan-soft);
+  font:700 11px var(--atlas-font);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.views button:hover{background:rgba(0,217,255,.08)}
+.views button:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+#log{margin:4px 0 0;max-height:120px;overflow:auto;padding:6px 8px;border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);
+  font:10.5px/1.4 var(--atlas-font-mono);color:var(--atlas-text-secondary);white-space:pre}
+#estop,.hdr-btn{white-space:nowrap;flex:none}
+.atlas-header .chips{flex-wrap:nowrap}
+/* cabeçalho com E-STOP/apresentação/ajuda: libera espaço antes de quebrar */
+@media (max-width:1500px){.brand-stack,.brand-sub{display:none}.brand-mark{border-right:0;padding-right:0}#chip-xr{display:none}#chip-demo{display:none!important} /* etapa já aparece na legenda HUD */}
+@media (max-width:1280px){
+  .atlas-header{flex-wrap:wrap;gap:4px 12px;padding:6px 12px 0}
+  .atlas-header .chips{margin-left:auto}
+  .atlas-header .tabs{order:3;flex-basis:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}
+  #estopBanner{top:112px}
+}
+@media (max-width:640px){
+  .atlas-header .hdr-actions{order:1;margin-left:auto}
+  .atlas-header .chips{order:2;flex-basis:100%;margin-left:0;justify-content:flex-start;flex-wrap:wrap}
+  #estop{padding:0 10px;font-size:11px;min-height:36px}#presb,#helpb{min-width:40px;min-height:36px}
+  #estopBanner{top:118px;width:calc(100% - 24px);box-sizing:border-box;flex-wrap:wrap}
+}
 </style>
 </head>
 <body>
 <canvas id="c" role="img" aria-label="Modelo 3D interativo do braço robótico"></canvas>
-<div id="bar">
-  <span class="ttl">🦾 Braço Robótico<small>VR · MQTT · ESP32</small></span>
-  <span id="modetag">Manual</span>
-  <span id="badge" data-state="off">● Simulação (offline)</span>
-  <button id="estop" title="Parada de emergência (E-STOP) — tecla E">⛔ PARADA</button>
-  <button id="presb" class="o" title="Modo apresentação (P)" aria-label="Modo apresentação">📽</button>
-  <button id="helpb" class="o" title="Ajuda (H)" aria-label="Ajuda">?</button>
+<div id="shell">
+  <div class="hotspots" id="hotspots" aria-label="Articulações no modelo 3D"></div>
+  <header class="atlas-header" id="bar">
+    <div class="brand">
+      <div class="brand-mark" aria-label="ATLAS">AT<b>LAS</b></div>
+      <div>
+        <div class="brand-sub">Robotic Digital Twin</div>
+        <div class="brand-stack">Babylon.js · WebXR · MQTT · ESP32</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Navegação principal">
+      <button class="tab" role="tab" id="t-twin" aria-controls="p-twin" data-tab="twin">Digital Twin</button>
+      <button class="tab" role="tab" id="t-ctrl" aria-controls="p-ctrl" data-tab="ctrl">Controle</button>
+      <button class="tab" role="tab" id="t-tele" aria-controls="p-tele" data-tab="tele">Telemetria</button>
+      <button class="tab" role="tab" id="t-xr"   aria-controls="p-xr"   data-tab="xr">WebXR</button>
+      <button class="tab" role="tab" id="t-cfg"  aria-controls="p-cfg"  data-tab="cfg">Configurações</button>
+    </nav>
+    <div class="chips" role="status" aria-live="polite" aria-label="Estado do sistema">
+      <span class="chip" id="chip-mode" data-s="info"><span class="v">● Simulação</span></span>
+      <span class="chip" id="chip-demo" data-s="info" hidden><span class="v">▶ Demo</span></span>
+      <span class="chip" id="chip-mqtt" data-s="off"><span class="k">MQTT</span><span class="v">○ offline</span></span>
+      <span class="chip" id="chip-esp"  data-s="off"><span class="k">ESP32</span><span class="v">○ sem telemetria</span></span>
+      <span class="chip" id="chip-xr"   data-s="off"><span class="k">VR</span><span class="v">○ verificando</span></span>
+      <span id="modetag">Manual</span>
+      <span id="badge" data-state="off">● Simulação (offline)</span>
+    </div>
+    <div class="hdr-actions">
+      <button id="presb" class="hdr-btn" type="button" title="Modo apresentação (P)" aria-label="Modo apresentação">📽</button>
+      <button id="helpb" class="hdr-btn" type="button" title="Ajuda (H)" aria-label="Ajuda">?</button>
+      <button id="estop" type="button" title="Parada de emergência (E-STOP) — tecla E">⛔ PARADA</button>
+    </div>
+  </header>
+
+  <main class="atlas-main">
+    <div id="ui">
+    <aside class="panel" id="panel" aria-labelledby="panel-title">
+      <div class="panel-head">
+        <h2 id="panel-title">Controle</h2>
+        <button class="icon-btn" id="panel-close" type="button" aria-label="Recolher painel" title="Recolher painel (Esc)">×</button>
+      </div>
+      <div class="panel-body">
+
+        <section role="tabpanel" id="p-twin" aria-labelledby="t-twin" hidden>
+          <p class="lead"><b>Ambiente Virtual</b> ⇄ <b>Digital Twin</b> ⇄ <b>MQTT</b> ⇄ <b>ESP32</b> ⇄ <b>Robô Físico</b></p>
+          <h3>Articulações</h3>
+          <div class="joint-picks" id="twin-picks" role="group" aria-label="Selecionar articulação"></div>
+          <dl class="readout" id="twin-readout"></dl>
+          <label class="check"><input type="checkbox" id="hs-toggle" checked> Mostrar marcadores no modelo</label>
+          <h3>Vistas</h3>
+          <div class="views" role="group" aria-label="Vistas da câmera"><button class="o" data-v="front">Frontal</button><button class="o" data-v="side">Lateral</button><button class="o" data-v="top">Topo</button><button class="o" data-v="zoom">Detalhe</button></div>
+          <h3>Aparência</h3>
+          <label class="check"><input type="checkbox" id="th-scene" checked> Ambiente Digital Twin (azul-marinho + grade)</label>
+          <label class="check"><input type="checkbox" id="th-robot" checked> Cores do robô físico (vermelho / amarelo)</label>
+          <p class="hint">Desmarque para ver o laboratório e as cores originais do modelo. Só aparência — não afeta o movimento.</p>
+          <p class="hint">Arraste para orbitar · roda do mouse para aproximar.</p>
+        </section>
+
+        <section role="tabpanel" id="p-ctrl" aria-labelledby="t-ctrl" hidden>
+          <div class="sel-card" id="sel-card" role="region" aria-live="polite" aria-label="Articulação selecionada" hidden>
+            <div class="sel-title" id="sel-title"></div>
+            <button class="icon-btn" id="sel-close" type="button" aria-label="Limpar seleção" title="Limpar seleção">×</button>
+            <dl class="readout">
+              <dt>Atual</dt><dd id="sel-cur">—</dd>
+              <dt>Limites</dt><dd id="sel-lim">—</dd>
+              <dt>Estado</dt><dd id="sel-state">—</dd>
+            </dl>
+          </div>
+          <div class="live-banner" id="ctrl-live" role="alert" hidden>
+            <div><b>● Controle real habilitado</b><span>Sliders, Demo, Zerar e hand tracking estão sendo enviados ao robô físico.</span></div>
+          </div>
+          <h3>Controle do braço</h3>
+          <div id="sl" role="group" aria-label="Articulações do braço"></div>
+          <div class="b"><button id="demo" title="Demonstração guiada (Espaço)">▶ Demonstração</button><button id="rst" class="o" aria-label="Zerar todas as articulações (Reset)">⟲ Zerar</button></div>
+          <p class="hint">Demonstração guiada em 6 etapas (tecla Espaço) — para ao mover um slider. Emergência: tecla <b>E</b> ou ⛔ PARADA.</p>
+        </section>
+
+        <section role="tabpanel" id="p-tele" aria-labelledby="t-tele" hidden>
+          <h3>Conexão</h3>
+          <dl class="readout">
+            <dt>MQTT</dt><dd id="tele-mqtt" data-s="off">offline</dd>
+            <dt>ESP32</dt><dd id="tele-esp" data-s="off">sem telemetria</dd>
+            <dt>Envio ao robô</dt><dd id="tele-snd" data-s="off">desligado</dd>
+          </dl>
+          <h3>Ângulos <span class="badge" id="tele-src" data-s="warn">Dados simulados</span></h3>
+          <table class="tele-table" aria-describedby="tele-src">
+            <thead><tr><th scope="col">Junta</th><th scope="col">Comando</th><th scope="col">Robô real</th></tr></thead>
+            <tbody id="tele-rows"></tbody>
+          </table>
+          <h3>Rede</h3>
+          <dl class="readout">
+            <dt>Último pacote do ESP32</dt><dd id="tele-last" data-s="off">—</dd>
+            <dt>Taxa de estado</dt><dd id="tele-rate" data-s="off">—</dd>
+            <dt>Envio de comandos</dt><dd id="tele-tx" data-s="off">—</dd>
+            <dt>Latência</dt><dd data-s="off" title="O payload não tem carimbo de tempo; a latência real não pode ser medida.">não medida</dd>
+          </dl>
+          <p class="hint">“Robô real” = último <code>&lt;prefixo&gt;/estado</code> publicado pelo ESP32 (10 Hz). Sem dados reais, só o comando do Digital Twin é exibido.</p>
+        </section>
+
+        <section role="tabpanel" id="p-xr" aria-labelledby="t-xr" hidden>
+          <div class="conn-box" id="xr-box" data-s="off" role="status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="t" id="xr-t">Verificando WebXR…</span>
+            <div class="why" id="xr-why"></div>
+          </div>
+          <div class="b"><button id="xr-enter" type="button" disabled>🥽 Entrar em VR</button></div>
+          <h3>Diagnóstico</h3>
+          <dl class="readout wide">
+            <dt>Contexto seguro (HTTPS)</dt><dd id="xr-secure">—</dd>
+            <dt>API WebXR no navegador</dt><dd id="xr-api">—</dd>
+            <dt>Sessão imersiva (VR)</dt><dd id="xr-sess" data-s="off">verificando</dd>
+            <dt>Hand tracking</dt><dd id="xr-hands" data-s="off">—</dd>
+            <dt>Robô real em VR</dt><dd id="xr-snd" data-s="off">—</dd>
+            <dt>Mãos (em VR)</dt><dd id="xr-hstate" data-s="off">— fora de VR</dd>
+          </dl>
+          <h3>Como usar (hand tracking)</h3>
+          <ol class="steps">
+            <li>Ative <b>Enviar comandos</b> em Configurações antes de colocar o headset (se for comandar o robô real).</li>
+            <li>Entre em VR (botão acima ou 🥽 no canto inferior direito).</li>
+            <li><b>Mão esquerda:</b> faça a pinça (polegar + indicador) para habilitar o movimento. Solte para parar.</li>
+            <li><b>Mão direita:</b> posiciona o pulso do robô; a abertura entre polegar e indicador controla a garra.</li>
+          </ol>
+          <p class="hint">No Quest: Configurações → Movimento e controladores → Rastreamento de mãos ligado.</p>
+          <h3>Feedback das mãos (no headset)</h3>
+          <ol class="steps">
+            <li><b>○ Procurando mãos</b> — mostre as mãos à frente do headset.</li>
+            <li><b>● Mãos detectadas</b> — faça a pinça com a mão esquerda.</li>
+            <li><b>● Controle armado</b> — pinça esquerda detectada; use a mão direita.</li>
+            <li><b>● Movimento ativo</b> — o braço segue a mão direita; solte a pinça para parar.</li>
+          </ol>
+          <p class="hint">As instruções somem depois de alguns segundos de uso com sucesso.</p>
+          <h3>Painel no headset</h3>
+          <p class="hint" style="margin-top:0">Em VR, um painel compacto aparece ao lado do braço (estado, articulações, MQTT, ESP32).</p>
+          <label class="check"><input type="checkbox" id="xr-preview"> Pré-visualizar o painel do headset nesta tela</label>
+        </section>
+
+        <section role="tabpanel" id="p-cfg" aria-labelledby="t-cfg" hidden>
+          <h3>MQTT — conexão</h3>
+          <div class="conn-box" id="conn-box" data-s="off" role="status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="t" id="conn-t">Desconectado</span>
+            <div id="mq">desconectado</div>
+          </div>
+          <label class="field" for="url">Broker (WebSocket seguro)</label>
+          <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off" aria-describedby="url-hint">
+          <p class="field-hint" id="url-hint">Ex.: HiveMQ/EMQX Cloud — wss://HOST:8884/mqtt</p>
+          <label class="field" for="usr">Usuário</label>
+          <input id="usr" type="text" placeholder="usuário" autocomplete="username">
+          <label class="field" for="pwd">Senha</label>
+          <div class="pw-row"><input id="pwd" type="password" placeholder="senha" autocomplete="off"><button type="button" id="pwd-eye" aria-controls="pwd" aria-pressed="false">Mostrar</button></div>
+          <p class="field-hint">🔒 A senha não é salva neste navegador.</p>
+          <label class="field" for="pfx">Prefixo do tópico</label>
+          <input id="pfx" type="text" placeholder="prefixo do tópico (ex: braco)" value="braco">
+          <div class="b"><button id="con">Conectar</button></div>
+
+          <h3>Modo de operação</h3>
+          <label class="check"><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
+          <p class="opt-desc">Digital Twin → robô físico. Exige MQTT conectado e confirmação; bloqueado durante o E-STOP.</p>
+          <label class="check"><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
+          <p class="opt-desc">Robô físico → Digital Twin. Os dois modos são exclusivos.</p>
+
+          <h3>Tópicos</h3>
+          <dl class="topics">
+            <dt>Publica</dt><dd><span id="tp-cmd">braco/cmd</span><small>20 Hz · QoS 0 · somente com “Enviar comandos”</small></dd>
+            <dt>Assina</dt><dd><span id="tp-est">braco/estado</span><small>ESP32 publica a 10 Hz</small></dd>
+            <dt>E-STOP</dt><dd><span id="tp-estop">braco/estop</span><small>"1" ao acionar · "0" ao rearmar · QoS 1</small></dd>
+            <dt>Payload</dt><dd>{"waist", "shoulder", "elbow", "pitch", "grip"}<small>graus, relativos à pose do modelo</small></dd>
+          </dl>
+          <h3>Log MQTT</h3>
+          <pre id="log" role="region" aria-label="Log de mensagens MQTT" tabindex="0"></pre>
+          <details class="help">
+            <summary>Ajuda: broker e ESP32</summary>
+            <p>O navegador só fala MQTT sobre WebSocket seguro (<code>wss://</code>); o ESP32 usa MQTT comum (TCP 1883/8883). Use um broker com os dois.</p>
+            <p>URL, usuário e prefixo ficam salvos neste navegador ao clicar em Conectar; a senha não.</p>
+          </details>
+        </section>
+
+      </div>
+    </aside>
+    </div>
+  </main>
+
+
+  <footer class="atlas-bar">
+    <div id="st">Carregando modelo…</div>
+    <div class="chain"><b>Virtual</b> ⇄ <b>Twin</b> ⇄ MQTT ⇄ ESP32 ⇄ Robô físico</div>
+  </footer>
 </div>
-<div id="estopBanner" role="alert">⛔ PARADA DE EMERGÊNCIA ATIVA — envio ao robô bloqueado</div>
+<div id="estopBanner" role="alert">
+  <div><b>⛔ PARADA DE EMERGÊNCIA</b><span>Comandos físicos bloqueados — o robô não recebe comandos.</span></div>
+  <button id="estop-rearm" type="button">Rearmar sistema</button>
+</div>
 <div id="cap"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="help" role="dialog" aria-label="Ajuda">
-  <button id="helpx" class="o" aria-label="Fechar ajuda">✕</button>
+  <button id="helpx" aria-label="Fechar ajuda">✕</button>
   <h2>Ajuda</h2>
   <h3>Atalhos de teclado</h3>
   <table>
@@ -83,45 +568,23 @@ button{min-height:34px}.r label{margin:0}
     <tr><td><kbd>P</kbd></td><td>Modo apresentação</td></tr>
     <tr><td><kbd>F</kbd></td><td>Tela cheia</td></tr>
     <tr><td><kbd>H</kbd></td><td>Abrir / fechar esta ajuda</td></tr>
-    <tr><td><kbd>Esc</kbd></td><td>Fechar ajuda ou sair da apresentação</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Fechar ajuda, sair da apresentação ou recolher o painel</td></tr>
+    <tr><td><kbd>← →</kbd></td><td>Trocar de aba (com o foco nas abas)</td></tr>
   </table>
   <h3>Realidade virtual (mãos)</h3>
-  <p>Entre com o botão 🥽. <b>Pinça da mão esquerda</b> (polegar + indicador) habilita o controle. A <b>mão direita</b> guia o braço, e afastar polegar e indicador abre a garra.</p>
+  <p>Entre pela aba <b>WebXR</b> ou pelo botão 🥽. <b>Pinça da mão esquerda</b> (polegar + indicador) habilita o controle. A <b>mão direita</b> guia o braço, e afastar polegar e indicador abre a garra.</p>
   <h3>Conectar ao robô real</h3>
   <ol>
-    <li>Abra <b>MQTT / ESP32</b> e informe a URL do broker (<code>wss://</code>), usuário e senha.</li>
-    <li>Clique em <b>Conectar</b>: o selo no topo fica verde.</li>
+    <li>Em <b>Configurações</b>, informe a URL do broker (<code>wss://</code>), usuário e senha.</li>
+    <li>Clique em <b>Conectar</b>: o chip MQTT fica verde.</li>
     <li>Marque <b>Enviar comandos ao robô real</b> e confirme.</li>
-    <li>Em caso de risco: tecla <kbd>E</kbd> ou botão vermelho.</li>
+    <li>Em caso de risco: tecla <kbd>E</kbd> ou botão ⛔ PARADA.</li>
   </ol>
   <h3>Sobre</h3>
-  <p>Navegador (Babylon.js) ⇄ broker MQTT ⇄ ESP32 ⇄ servos. Sem conexão, o app funciona como simulação.</p>
+  <p>ATLAS · Robotic Digital Twin — navegador (Babylon.js) ⇄ broker MQTT ⇄ ESP32 ⇄ servos. Sem conexão, funciona como simulação.</p>
 </div>
-<div id="tel"><canvas id="telc" width="300" height="120"></canvas><div id="telleg"></div></div>
+<div id="tel" aria-label="Telemetria (modo apresentação)"><canvas id="telc" width="300" height="120"></canvas><div id="telleg"></div></div>
 <div id="loadc"><div>Carregando modelo 3D…</div><div class="pb"><i id="pbi"></i></div></div>
-<div id="ui">
-  <h1>Controle das articulações</h1>
-  <div id="sl"></div>
-  <div class="b vw"><button class="o" data-v="front">Frontal</button><button class="o" data-v="side">Lateral</button><button class="o" data-v="top">Topo</button><button class="o" data-v="zoom">Detalhe</button></div>
-  <div class="b"><button id="demo">▶ Demonstração</button><button id="rst" class="o">Zerar</button></div>
-  <details><summary>MQTT / ESP32</summary>
-    <label class="f" for="url">URL do broker</label>
-    <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off">
-    <label class="f" for="usr">Usuário</label>
-    <input id="usr" type="text" placeholder="usuário" autocomplete="off">
-    <label class="f" for="pwd">Senha</label>
-    <input id="pwd" type="password" placeholder="senha" autocomplete="off">
-    <div class="hint">🔒 A senha não é salva neste navegador.</div>
-    <label class="f" for="pfx">Prefixo dos tópicos</label>
-    <input id="pfx" type="text" placeholder="ex.: braco" value="braco">
-    <label><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
-    <label><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
-    <div class="b"><button id="con">Conectar</button></div>
-    <div id="mq">desconectado</div>
-    <pre id="log"></pre>
-  </details>
-  <div id="st">Carregando modelo…</div>
-</div>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.30.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.30.0/babylonjs.loaders.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -455,6 +918,594 @@ function tick(dt){
     say("✔ Pronto. Botão 🥽 para VR. Em VR: mão direita move o robô; PINÇA da mão esquerda = habilita.");
   }catch(e){say("⚠️ VR indisponível (precisa de HTTPS + navegador WebXR). A pré-visualização 3D funciona.")}
  }catch(err){hideLoad();console.error(err);say("❌ Erro: "+(err.message||err))}
+})();
+</script>
+<script>
+// ---------- ATLAS UI shell (ETAPA 2) ----------
+// Somente apresentação: navegação por abas e leitura do estado existente
+// (S, mode, demo, mq, #snd, #mir, #mq). Nada aqui escreve em S nem chama a cinemática.
+(()=>{
+  const el=id=>document.getElementById(id);
+  const TABS=["twin","ctrl","tele","xr","cfg"];
+  const JOINTS=[["waist","J1","Base"],["shoulder","J2","Ombro"],["elbow","J3","Cotovelo"],["pitch","J4","Punho"],["grip","","Garra"]];
+  const panel=el("panel"), title=el("panel-title");
+  let active=null;
+
+  // ----- Abas: um único painel contextual por vez -----
+  function show(tab,focus){
+    active=tab;
+    panel.hidden=!tab;
+    TABS.forEach(t=>{
+      const b=el("t-"+t), on=t===tab;
+      b.setAttribute("aria-selected",on?"true":"false");
+      b.tabIndex=on||(!tab&&t==="twin")?0:-1;
+      el("p-"+t).hidden=!on;
+    });
+    if(tab){title.textContent=el("t-"+tab).textContent;if(focus)el("t-"+tab).focus()}
+    try{localStorage.setItem("atlas_tab",tab||"")}catch(e){}
+    refresh();
+  }
+  TABS.forEach((t,i)=>{
+    const b=el("t-"+t);
+    b.onclick=()=>show(active===t?null:t);
+    b.onkeydown=e=>{
+      const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;
+      if(d){e.preventDefault();show(TABS[(i+d+TABS.length)%TABS.length],true)}
+      else if(e.key==="Home"){e.preventDefault();show(TABS[0],true)}
+      else if(e.key==="End"){e.preventDefault();show(TABS[TABS.length-1],true)}
+    };
+  });
+  el("panel-close").onclick=()=>{const t=active;show(null);if(t)el("t-"+t).focus()};
+  panel.addEventListener("keydown",e=>{if(e.key==="Escape"){const t=active;show(null);if(t)el("t-"+t).focus()}});
+
+  // ----- Leituras das articulações (somente exibição) -----
+  const mkReadout=box=>Object.fromEntries(JOINTS.map(([k,j,l])=>{
+    const dt=document.createElement("dt");dt.innerHTML=(j?`<b>${j}</b>`:"")+l;
+    const dd=document.createElement("dd");dd.textContent="—";box.append(dt,dd);return [k,dd];
+  }));
+  const twinDD=mkReadout(el("twin-readout"));
+  const teleRow=Object.fromEntries(JOINTS.map(([k,j,l])=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${j?`<b>${j}</b>`:""}${l}</td><td>—</td><td class="fb" data-s="off">—</td>`;
+    el("tele-rows").append(tr);return [k,{cmd:tr.children[1],fb:tr.children[2]}];
+  }));
+
+  // ----- ETAPA 5: escuta SOMENTE LEITURA de <pfx>/estado -----
+  // O app já assina <pfx>/estado ao conectar, mas só usa as mensagens no modo espelho.
+  // Um listener adicional no cliente mqtt.js (que aceita vários) registra quando o ESP32
+  // publicou e o último estado — sem alterar S, tópicos, QoS, payload ou o handler original.
+  const esp={client:null,last:0,data:null,times:[]};
+  function tapClient(c){
+    if(!c||esp.client===c||typeof c.on!=="function")return;
+    esp.client=c;esp.last=0;esp.data=null;esp.times=[];
+    c.on("message",(topic,msg)=>{
+      try{
+        if(esp.client!==c||!/\/estado$/.test(String(topic)))return;
+        const d=JSON.parse(String(msg));if(!d||typeof d!=="object")return;
+        const t=performance.now();esp.last=t;esp.data=d;esp.times.push(t);
+        while(esp.times.length&&t-esp.times[0]>2000)esp.times.shift();
+      }catch(e){}
+    });
+  }
+  const ESP_FRESH=1500; // ESP32 publica a cada 100 ms; >1,5 s sem pacote = sem dados
+  const fmt=v=>(typeof v==="number"&&isFinite(v)?v.toFixed(1):"—")+"°";
+
+  // ----- ETAPA 7: diagnóstico WebXR (somente leitura) -----
+  const xrInfo={secure:!!window.isSecureContext,api:!!navigator.xr,vr:null};
+  if(navigator.xr&&typeof navigator.xr.isSessionSupported==="function")
+    navigator.xr.isSessionSupported("immersive-vr").then(v=>{xrInfo.vr=!!v}).catch(()=>{xrInfo.vr=false});
+  else xrInfo.vr=false;
+  const vrButton=()=>document.querySelector(".babylonVRicon");
+
+  const stat={}; // último estado exibido nos chips (reaproveitado pelo painel do headset)
+  const chip=(id,s,txt)=>{stat[id]={s,t:txt};const c=el(id);if(c.dataset.s!==s)c.dataset.s=s;const v=c.querySelector(".v");if(v.textContent!==txt)v.textContent=txt};
+  const set=(id,s,txt)=>{const d=el(id);if(d.dataset.s!==s)d.dataset.s=s;if(d.textContent!==txt)d.textContent=txt};
+
+  // ----- Estado operacional (derivado; nunca ambíguo) -----
+  function refresh(){
+    const client=typeof mq!=="undefined"?mq:null, con=!!(client&&client.connected);
+    const snd=el("snd").checked, mir=el("mir").checked, mqTxt=el("mq").textContent;
+    const md=typeof mode!=="undefined"?mode:"manual", dm=typeof demo!=="undefined"&&demo;
+
+    const es=typeof estop!=="undefined"&&estop;
+    if(es)            chip("chip-mode","danger","⛔ E-STOP ativo");
+    else if(snd&&con) chip("chip-mode","live","● Controle real habilitado");
+    else if(snd)      chip("chip-mode","warn","◐ Envio armado · MQTT offline");
+    else if(mir&&con) chip("chip-mode","info","● Espelhando robô real");
+    else              chip("chip-mode","info","● Simulação");
+    el("chip-demo").hidden=!dm;
+    if(dm){const m=/Etapa (\d+)\/(\d+)/.exec(el("cap").textContent);el("chip-demo").querySelector(".v").textContent="▶ Demo"+(m?" "+m[1]+"/"+m[2]:"")}
+    demoHighlight(dm);
+    el("ctrl-live").hidden=!(snd&&con);
+    if(hl){const on=!(typeof inXR!=="undefined"&&inXR);if(hl.isEnabled!==on)hl.isEnabled=on} // sem destaque em VR (frame rate do headset)
+
+    // status MQTT a partir do selo da lógica (#badge: ok / wait / off + texto de setConn)
+    const bg=el("badge"), bs=bg.dataset.state, bt=bg.textContent.replace(/^●\s*/,"");
+    const bErr=/erro|inválida|insegura/i.test(bt);
+    let ms,mt;
+    if(con){ms="ok";mt="● conectado"}
+    else if(bs==="wait"){ms="warn";mt="◐ "+bt.toLowerCase()}
+    else if(bErr){ms="danger";mt="● erro"}
+    else{ms="off";mt="○ offline"}
+    chip("chip-mqtt",ms,mt);
+    tapClient(client);
+    const now=performance.now(), age=esp.last?now-esp.last:Infinity;
+    const espOn=con&&esp.client===client&&age<ESP_FRESH, espStale=con&&esp.client===client&&esp.last&&!espOn;
+    const ageTxt=a=>a<1000?Math.round(a)+" ms":(a/1000).toFixed(1)+" s";
+    if(espOn)        chip("chip-esp","ok","● online");
+    else if(espStale)chip("chip-esp","warn","◐ sem dados");
+    else             chip("chip-esp","off","○ sem telemetria");
+
+    // Configurações → MQTT (status + derivados do formulário; somente exibição)
+    const cb=el("conn-box");
+    if(cb.dataset.s!==ms)cb.dataset.s=ms;
+    const host=(()=>{try{return new URL(el("url").value.trim()).host}catch(e){return ""}})();
+    const ct=con?"Conectado":bs==="wait"||bErr?bt:"Desconectado", chost=con&&host?" · "+host:"";
+    if(el("conn-t").textContent!==ct+chost){el("conn-t").textContent=ct;if(chost){const h=document.createElement("span");h.className="hst";h.textContent=chost;el("conn-t").append(h)}}
+    const pfx=el("pfx").value.trim()||"braco";
+    if(el("tp-cmd").textContent!==pfx+"/cmd"){el("tp-cmd").textContent=pfx+"/cmd";el("tp-est").textContent=pfx+"/estado";el("tp-estop").textContent=pfx+"/estop"}
+    const u=el("url").value.trim(), uh=el("url-hint");
+    let hs="",ht="Ex.: HiveMQ/EMQX Cloud — wss://HOST:8884/mqtt";
+    if(u&&!/^wss?:\/\//i.test(u)){hs="warn";ht="A URL deve começar com wss:// (WebSocket seguro)."}
+    else if(/^ws:\/\//i.test(u)&&location.protocol==="https:"){hs="warn";ht="Página HTTPS: o navegador bloqueia ws:// — use wss://."}
+    if(uh.textContent!==ht){uh.textContent=ht;uh.dataset.s=hs}
+
+    if(active==="twin")JOINTS.forEach(([k])=>{const t=fmt(S[k]);if(twinDD[k].textContent!==t)twinDD[k].textContent=t});
+    if(active==="tele"){
+      set("tele-mqtt",ms,mt.slice(2));
+      set("tele-esp",espOn?"ok":espStale?"warn":"off",espOn?"online":espStale?"sem dados há "+ageTxt(age):"sem telemetria");
+      set("tele-snd",snd?"warn":"off",snd?(con?"ativo — comandos ao robô":"armado (MQTT offline)"):"desligado");
+      const src=el("tele-src");
+      const st=espOn?(md==="mirror"&&mir?"Espelhando robô real":"Comando × estado real"):"Dados simulados";
+      if(src.textContent!==st){src.textContent=st;src.dataset.s=espOn?"":"warn"}
+      JOINTS.forEach(([k])=>{
+        const r=teleRow[k], c=fmt(S[k]);
+        if(r.cmd.textContent!==c)r.cmd.textContent=c;
+        const v=espOn&&esp.data?esp.data[k]:undefined, has=typeof v==="number";
+        const f=has?fmt(v):espStale&&esp.data&&typeof esp.data[k]==="number"?fmt(esp.data[k]):"—";
+        const fs=has?"":espStale?"warn":"off";
+        if(r.fb.textContent!==f)r.fb.textContent=f; if(r.fb.dataset.s!==fs)r.fb.dataset.s=fs;
+      });
+      set("tele-last",espOn?"ok":espStale?"warn":"off",esp.last&&con?ageTxt(age):"—");
+      set("tele-rate",espOn?"ok":"off",espOn&&esp.times.length>1?(esp.times.length/2).toFixed(1)+" Hz":"—");
+      set("tele-tx",snd&&con?"warn":"off",snd&&con?"20 Hz · QoS 0 (configurado)":"parado");
+    }
+
+    // WebXR: veredito único e motivo claro (somente leitura)
+    let xs,xt,xw;
+    if(!xrInfo.secure)      {xs="danger";xt="VR indisponível";xw="A página não está em HTTPS. WebXR exige conexão segura — abra pelo endereço https://."}
+    else if(!xrInfo.api)    {xs="warn";xt="Navegador sem WebXR";xw="Abra no Meta Quest Browser (ou outro navegador com WebXR). A pré-visualização 3D continua funcionando."}
+    else if(xrInfo.vr===null){xs="off";xt="Verificando suporte…";xw=""}
+    else if(!xrInfo.vr)     {xs="warn";xt="Sem sessão VR disponível";xw="Nenhum headset compatível neste dispositivo. A pré-visualização 3D continua funcionando."}
+    else if(!vrButton())    {xs="warn";xt="Preparando VR…";xw="A interface WebXR do Babylon ainda não foi criada (aguarde o modelo carregar)."}
+    else                    {xs="ok";xt="Pronto para VR";xw="Coloque o headset e clique em Entrar em VR."}
+    const xb=el("xr-box"); if(xb.dataset.s!==xs)xb.dataset.s=xs;
+    if(el("xr-t").textContent!==xt)el("xr-t").textContent=xt;
+    if(el("xr-why").textContent!==xw)el("xr-why").textContent=xw;
+    el("xr-enter").disabled=xs!=="ok";
+    chip("chip-xr",xs==="ok"?"ok":xs==="off"?"off":"warn",xs==="ok"?"● pronto":xs==="off"?"○ verificando":"○ indisponível");
+    if(active==="xr"){
+      set("xr-secure",xrInfo.secure?"ok":"danger",xrInfo.secure?"sim":"não");
+      set("xr-api",xrInfo.api?"ok":"warn",xrInfo.api?"presente":"ausente");
+      set("xr-sess",xrInfo.vr?"ok":xrInfo.vr===null?"off":"warn",xrInfo.vr?"suportada":xrInfo.vr===null?"verificando":"não suportada");
+      const hf=typeof handFeat!=="undefined"&&!!handFeat;
+      set("xr-hands",hf?"ok":"off",hf?"recurso habilitado":xrInfo.vr?"não habilitado":"—");
+      const hs=HSTATE[hands.state];
+      set("xr-hstate",typeof inXR!=="undefined"&&inXR?(hs.s==="ok"?"ok":hs.s==="warn"?"warn":"off"):"off",
+        typeof inXR!=="undefined"&&inXR?hs.t.replace(/^[●○]\s*/,"").toLowerCase():"— fora de VR");
+      set("xr-snd",snd?"warn":"off",snd?(con?"ligado — o robô físico acompanha":"armado — MQTT offline"):"desligado — só o Digital Twin se move");
+    }
+  }
+  setInterval(refresh,250);
+  el("xr-enter").onclick=()=>{const b=vrButton();if(b)b.click()}; // aciona o botão VR do próprio Babylon
+
+  // ----- ETAPA 3: controles — camada visual sobre os sliders EXISTENTES -----
+  // Os <input range> continuam sendo os criados pelo script principal, com o mesmo oninput
+  // (que escreve em S). Aqui só se acrescentam rótulos, limites, preenchimento do trilho
+  // e a atualização do número exibido (mesmo formato de syncUI).
+  const LIM_TXT={grip:["Fechada","Aberta"]};
+  const deg=v=>(v>0?"+":v<0?"−":"")+Math.abs(v)+"°";
+  const painted={};
+  function paint(k){
+    const i=inputs[k][0], v=+i.value;
+    if(painted[k]===v)return; painted[k]=v;
+    const mn=+i.min, mx=+i.max, z=Math.min(Math.max(-mn/(mx-mn),0),1), p=(v-mn)/(mx-mn);
+    const at=f=>`calc(9px + (100% - 18px) * ${f.toFixed(4)})`;
+    i.style.setProperty("--a",at(Math.min(z,p)));i.style.setProperty("--b",at(Math.max(z,p)));
+    i.setAttribute("aria-valuetext",k==="grip"?`${Math.round(v)} de 30 (0 fechada, 30 aberta)`:`${Math.round(v)} graus`);
+  }
+  JOINTS.forEach(([k,j,l])=>{
+    const [i,o]=inputs[k], row=i.parentElement, lab=row.querySelector("label,span");
+    lab.innerHTML=(j?`<b>${j}</b>`:"")+l; lab.id="lbl-"+k;
+    i.setAttribute("aria-labelledby",lab.id);
+    o.setAttribute("aria-hidden","true");
+    if(k==="grip")row.classList.add("is-grip");
+    const [tMin,tMax]=LIM_TXT[k]||[deg(+i.min),deg(+i.max)];
+    const mk=(c,t)=>{const s=document.createElement("small");s.className="lim "+c;s.textContent=t;s.setAttribute("aria-hidden","true");return s};
+    row.append(mk("lim-min",tMin),mk("lim-max",tMax));
+    i.addEventListener("input",()=>{o.textContent=Math.round(+i.value)+"°";paint(k)});
+    paint(k);
+  });
+  // Demo / espelho / VR atualizam os sliders via syncUI() sem evento "input": só nesses
+  // casos (e com a aba Controle aberta) um loop rAF repinta o trilho; fora deles, nada roda.
+  let painting=false;
+  const needPaint=()=>active==="ctrl"&&((typeof demo!=="undefined"&&demo)||(typeof mode!=="undefined"&&mode==="mirror")||(typeof inXR!=="undefined"&&inXR));
+  function paintLoop(){
+    JOINTS.forEach(([k])=>paint(k));
+    if(needPaint())requestAnimationFrame(paintLoop);else painting=false;
+  }
+  const kickPaint=()=>{JOINTS.forEach(([k])=>paint(k));if(!painting&&needPaint()){painting=true;requestAnimationFrame(paintLoop)}};
+  setInterval(kickPaint,250);
+  el("demo").addEventListener("click",()=>setTimeout(kickPaint));
+  el("rst").addEventListener("click",()=>setTimeout(kickPaint));
+
+  // (confirmação do envio: confirm() nativo da lógica da main — sem diálogo duplicado)
+
+  // Mostrar/ocultar senha (só o tipo do campo; a lógica lê .value)
+  el("pwd-eye").onclick=()=>{
+    const p=el("pwd"), show=p.type==="password";
+    p.type=show?"text":"password";
+    el("pwd-eye").textContent=show?"Ocultar":"Mostrar";el("pwd-eye").setAttribute("aria-pressed",show);
+  };
+
+  // ----- ETAPA 4: Digital Twin — seleção, marcadores e destaque -----
+  // Somente leitura da cena: posições absolutas dos TransformNodes existentes e
+  // HighlightLayer (camada de renderização). Nenhum material, pivô, parent ou rotação é tocado.
+  const SEG={ // âncora = nó de articulação existente; parts = peças do GLB que essa junta move
+    waist:   {anchor:["j_waist"],         parts:["Waist:1"]},
+    shoulder:{anchor:["j_shoulder"],      parts:["Arm 01:1"]},
+    elbow:   {anchor:["j_elbow"],         parts:["Arm 02 v3:1","Arm 03:1"]},
+    pitch:   {anchor:["j_pitch"],         parts:["Gripper base:1"]},
+    grip:    {anchor:["j_fingA","j_fingB"],parts:["gear2:1","grip link 1:2","Gripper 1:1","gear1:1","grip link 1:1","Gripper 1 (1):1"]}};
+  const PHYS={waist:80,elbow:80}; // faixa física com a calibração padrão do firmware (OFFSET 90, SMIN 10 / SMAX 170)
+  const NAME=Object.fromEntries(JOINTS.map(([k,j,l])=>[k,{tag:j||"GARRA",full:(j?j+" — ":"")+l}]));
+  const hsBox=el("hotspots"), hsBtn={}, pickBtn={};
+  let selected=null, hl=null, twin=null;
+
+  JOINTS.forEach(([k])=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="hs";b.textContent=NAME[k].tag;b.dataset.off="";
+    b.setAttribute("aria-pressed","false");b.setAttribute("aria-label","Selecionar "+NAME[k].full);
+    b.onclick=()=>select(selected===k?null:k,{open:true,focus:selected!==k});
+    hsBox.append(b);hsBtn[k]=b;
+    const p=document.createElement("button");
+    p.type="button";p.textContent=NAME[k].tag;
+    p.setAttribute("aria-pressed","false");p.setAttribute("aria-label","Destacar "+NAME[k].full);
+    p.onclick=()=>select(selected===k?null:k);
+    el("twin-picks").append(p);pickBtn[k]=p;
+    // slider → Digital Twin: focar ou mover o slider seleciona a junta (somente destaque)
+    const i=inputs[k][0];
+    i.addEventListener("focus",()=>{if(selected!==k)select(k)});
+    i.addEventListener("input",()=>{if(selected!==k)select(k);updateSel()});
+  });
+
+  function select(k,{open=false,focus=false}={}){
+    selected=k||null;
+    JOINTS.forEach(([j])=>{
+      const on=j===selected;
+      hsBtn[j].setAttribute("aria-pressed",on);pickBtn[j].setAttribute("aria-pressed",on);
+      inputs[j][0].parentElement.classList.toggle("is-sel",on);
+      twinDD[j].classList.toggle("is-sel",on);twinDD[j].previousElementSibling.classList.toggle("is-sel",on);
+    });
+    if(hl&&twin){try{hl.removeAllMeshes();demoK=undefined;if(selected)twin.meshes[selected].forEach(m=>hl.addMesh(m,twin.color))}catch(e){console.warn("destaque",e)}}
+    if(selected&&open&&active!=="ctrl")show("ctrl");
+    if(selected&&focus){const i=inputs[selected][0];i.focus({preventScroll:true});i.parentElement.scrollIntoView({block:"nearest"})}
+    updateSel();
+  }
+  function updateSel(){
+    const card=el("sel-card");
+    card.hidden=!selected; if(!selected)return;
+    const k=selected, [, , mn, mx]=J.find(r=>r[0]===k), v=S[k];
+    el("sel-title").innerHTML=NAME[k].full.replace(/^(J\d)/,"<b>$1</b>");
+    set("sel-cur","",fmt(v));
+    set("sel-lim","",k==="grip"?"0 fechada / 30 aberta":`${deg(mn)} / ${deg(mx)}`);
+    if(k==="grip"&&(v<=mn+1e-6||v>=mx-1e-6)) set("sel-state","ok",v<=mn+1e-6?"FECHADA":"ABERTA");
+    else if(v<=mn+1e-6||v>=mx-1e-6)   set("sel-state","warn","NO LIMITE");
+    else if(PHYS[k]&&Math.abs(v)>PHYS[k]) set("sel-state","warn",`ALÉM DA FAIXA DO SERVO (±${PHYS[k]}°)`);
+    else                               set("sel-state","ok","NORMAL");
+  }
+  setInterval(updateSel,250);
+  el("sel-close").onclick=()=>select(null);
+
+  try{if(localStorage.getItem("atlas_hs")==="0")el("hs-toggle").checked=false}catch(e){}
+  hsBox.hidden=!el("hs-toggle").checked;
+  el("hs-toggle").onchange=()=>{hsBox.hidden=!el("hs-toggle").checked;try{localStorage.setItem("atlas_hs",el("hs-toggle").checked?"1":"0")}catch(e){}};
+
+  let demoK;
+  const CAPJ={Cintura:"waist",Ombro:"shoulder",Cotovelo:"elbow",Pulso:"pitch",Garra:"grip"};
+  function demoHighlight(dm){
+    if(!hl||!twin||selected)return; // seleção do usuário tem prioridade
+    const m=dm&&/·\s*(\S+)/.exec(el("cap").textContent), k=m?CAPJ[m[1]]||null:null;
+    if(k===demoK)return; demoK=k;
+    try{hl.removeAllMeshes();if(k)twin.meshes[k].forEach(x=>hl.addMesh(x,twin.color))}catch(e){}
+  }
+  // E-STOP: "Rearmar sistema" no banner aciona o MESMO botão da lógica (setEstop(false))
+  el("estop-rearm").onclick=()=>{if(typeof estop!=="undefined"&&estop)el("estop").click()};
+  // modo apresentação: realça o botão (a lógica já alterna a classe .on em #presb)
+
+  function initTwin(){
+    const Bb=BABYLON, sc=sceneRef, node=n=>sc.getTransformNodeByName(n);
+    twin={meshes:{},anchors:{},owner:new Map(),color:new Bb.Color3(0,.85,1)};
+    JOINTS.forEach(([k])=>{
+      twin.anchors[k]=SEG[k].anchor.map(node);
+      const ms=SEG[k].parts.flatMap(n=>node(n).getChildMeshes(false).filter(m=>m.getTotalVertices()>0));
+      ms.forEach(m=>twin.owner.set(m,k));
+      // HighlightLayer não aceita InstancedMesh: destaca a malha-fonte (grip link 1:2 → grip link 1:1, ambas da garra)
+      twin.meshes[k]=[...new Set(ms.map(m=>m.sourceMesh||m))];
+    });
+    // texturas a 1/4 da resolução: custo de GPU/thread principal mínimo (o loop de publish MQTT divide a thread com o render)
+    try{hl=new Bb.HighlightLayer("atlas-hl",sc,{mainTextureRatio:.25,blurTextureSizeRatio:.25,blurHorizontalSize:.6,blurVerticalSize:.6});hl.innerGlow=false}
+    catch(e){console.warn("HighlightLayer indisponível",e);hl=null}
+    // Digital Twin → seleção: toque/clique (não arraste) numa peça do braço
+    sc.onPointerObservable.add(pi=>{
+      if(pi.type!==Bb.PointerEventTypes.POINTERTAP||(typeof inXR!=="undefined"&&inXR))return;
+      const m=pi.pickInfo&&pi.pickInfo.hit?pi.pickInfo.pickedMesh:null, k=m&&twin.owner.get(m);
+      if(k)select(k,{open:true});else if(selected)select(null);
+    });
+    // marcadores: projeção da posição absoluta das articulações (somente leitura)
+    const canvas=sc.getEngine().getRenderingCanvas(), tmp=new Bb.Vector3(), last={};
+    let rect=canvas.getBoundingClientRect();
+    window.addEventListener("resize",()=>{rect=canvas.getBoundingClientRect()});
+    sc.onAfterRenderObservable.add(()=>{
+      if(hsBox.hidden||el("ui").style.display==="none")return;
+      const cam=sc.activeCamera, eng=sc.getEngine(); if(!cam)return;
+      const w=eng.getRenderWidth(), h=eng.getRenderHeight(), vp=cam.viewport.toGlobal(w,h), tm=sc.getTransformMatrix();
+      JOINTS.forEach(([k])=>{
+        const a=twin.anchors[k]; tmp.setAll(0);
+        a.forEach(n=>tmp.addInPlace(n.getAbsolutePosition())); tmp.scaleInPlace(1/a.length);
+        const p=Bb.Vector3.Project(tmp,Bb.Matrix.IdentityReadOnly,tm,vp);
+        const vis=p.z>0&&p.z<1&&p.x>=0&&p.x<=w&&p.y>=0&&p.y<=h, b=hsBtn[k];
+        if(vis===("off" in b.dataset)){if(vis)delete b.dataset.off;else b.dataset.off=""}
+        if(!vis)return;
+        const t=`translate(${Math.round(rect.left+p.x/w*rect.width+10)}px,${Math.round(rect.top+p.y/h*rect.height-12)}px)`;
+        if(last[k]!==t){last[k]=t;b.style.transform=t}
+      });
+    });
+    if(selected)select(selected);
+    sceneTheme.init();
+    perf.init();
+  }
+  const waitTwin=setInterval(()=>{
+    if(typeof pose==="undefined"||!pose||typeof sceneRef==="undefined"||!sceneRef)return;
+    clearInterval(waitTwin);initTwin();
+  },200);
+
+  // ----- ETAPA 9: performance — SOMENTE elementos não cinemáticos -----
+  // Ambiente do laboratório: malhas estáticas, sem filhos e fora da hierarquia do braço
+  // (stage → j_* → peças). Nenhum nó do robô é congelado; freezeActiveMeshes NÃO é usado.
+  const perf=(()=>{
+    const ENV=/^(floor|safety\d|w|lum|win|banner|peg|bench|vise|shelf|bin|cnc|cncTop|ped)$/;
+    const report={frozen:0,skipped:[]};
+    function init(){
+      const sc=sceneRef, stage=sc.getTransformNodeByName("stage");
+      const robot=new Set([stage,...stage.getDescendants(false)]);
+      sc.meshes.forEach(m=>{
+        if(!ENV.test(m.name))return;
+        // salvaguardas: não pertence ao braço, não tem filhos, não tem parent
+        if(robot.has(m)||m.getChildren().length||m.parent){report.skipped.push(m.name);return}
+        m.isPickable=false;          // toque/clique só precisa das peças do braço
+        m.freezeWorldMatrix();       // posição/rotação nunca mudam
+        m.doNotSyncBoundingInfo=true;
+        report.frozen++;
+      });
+      sc.skipPointerMovePicking=true; // sem raycast a cada movimento do mouse (o toque continua com pick)
+      // telas 3x (celulares): renderiza no máximo a 2x. Em VR a resolução é a do headset (não afetada).
+      const eng=sc.getEngine(), dpr=window.devicePixelRatio||1;
+      if(dpr>2){eng.setHardwareScalingLevel(1/2);eng.resize()}
+    }
+    return {init,report};
+  })();
+
+  // ----- Cores da cena conforme a referência visual (somente aparência) -----
+  // Altera APENAS cores/brilho de materiais já existentes (mesmos objetos; nenhum material é
+  // trocado) e o fundo/neblina. Guarda os valores originais para poder restaurar.
+  const sceneTheme=(()=>{
+    const C=h=>BABYLON.Color3.FromHexString(h);
+    const ROBOT={"#000ACA":"#D62718","#0039E6":"#D62718","#FFFFFF":"#D62718","#C5CDE6":"#F2B705","#8E9CCA":"#F2B705"}; // azul→vermelho, claro→amarelo (como o robô físico)
+    const near=(c,r,g,b)=>c&&Math.abs(c.r-r)<.02&&Math.abs(c.g-g)<.02&&Math.abs(c.b-b)<.02;
+    let robotMats=[], envOps=[], grid=null, orig=null, ready=false, freezeGen=0;
+    const keep=(obj,prop)=>{const v=obj[prop];return [obj,prop,v&&v.clone?v.clone():v]};
+    function init(){
+      if(ready)return; ready=true;
+      const sc=sceneRef, stage=sc.getTransformNodeByName("stage"), robot=new Set(stage.getChildMeshes(false));
+      orig=[keep(sc,"clearColor"),keep(sc,"fogColor")];
+      const seen=new Set();
+      robot.forEach(m=>{const mt=m.material;if(!mt||seen.has(mt)||!mt.albedoColor)return;seen.add(mt);
+        const to=ROBOT[mt.albedoColor.toHexString()];if(!to)return;
+        orig.push(keep(mt,"albedoColor"),keep(mt,"metallic"),keep(mt,"roughness"));robotMats.push([mt,to])});
+      const envSeen=new Set(), env=(mt,fn)=>{if(!mt||envSeen.has(mt))return;envSeen.add(mt);
+        ["diffuseColor","emissiveColor","specularColor","emissiveTexture"].forEach(pp=>orig.push(keep(mt,pp)));envOps.push([mt,fn])};
+      sc.meshes.forEach(m=>{
+        if(robot.has(m)||!m.material)return; const mt=m.material, d=mt.diffuseColor, n=m.name;
+        if(n==="floor")env(mt,x=>{x.diffuseColor=C("#0A1C33");x.specularColor=C("#1A3550");x.emissiveColor=C("#000000");x.emissiveTexture=grid});
+        else if(n==="w"&&near(d,.86,.87,.89))env(mt,x=>{x.diffuseColor=C("#0B2440")});
+        else if(n==="w"&&near(d,.06,.16,.42))env(mt,x=>{x.diffuseColor=C("#0050C8");x.emissiveColor=C("#002A66")});
+        else if(n==="w"&&near(d,.1,.11,.13))env(mt,x=>{x.diffuseColor=C("#020B18")});
+        else if(n==="lum")env(mt,x=>{x.emissiveColor=C("#9FEFFF")});
+        else if(n==="win")env(mt,x=>{x.emissiveColor=C("#0A4A8A")});
+        else if(n==="bench"||n==="shelf")env(mt,x=>{x.diffuseColor=C("#24384F")});
+        else if(n==="vise"||n==="cncTop")env(mt,x=>{x.diffuseColor=C("#101C2B")});
+        else if(n==="cnc")env(mt,x=>{x.diffuseColor=C("#0B4FA8")});
+        else if(n==="ped")env(mt,x=>{x.diffuseColor=C("#1A2E47");x.specularColor=C("#335577")});
+      });
+      // grade ciano do piso (textura emissiva: linhas acesas, células escuras), célula de 0,5 m
+      grid=new BABYLON.DynamicTexture("atlas-grid",{width:256,height:256},sc,true);
+      const g=grid.getContext();g.fillStyle="#000";g.fillRect(0,0,256,256);
+      g.strokeStyle="rgba(0,217,255,.55)";g.lineWidth=3;g.strokeRect(0,0,256,256);
+      g.strokeStyle="rgba(0,217,255,.18)";g.lineWidth=1;g.beginPath();g.moveTo(128,0);g.lineTo(128,256);g.moveTo(0,128);g.lineTo(256,128);g.stroke();
+      grid.update();grid.wrapU=grid.wrapV=BABYLON.Texture.WRAP_ADDRESSMODE;grid.uScale=11/0.5;grid.vScale=9/0.5;
+      try{el("th-scene").checked=localStorage.getItem("atlas_th_scene")!=="0";el("th-robot").checked=localStorage.getItem("atlas_th_robot")!=="0"}catch(e){}
+      apply();
+    }
+    function restore(filter){orig.forEach(([o,pp,v])=>{if(filter(o))o[pp]=v&&v.clone?v.clone():v})}
+    function apply(){
+      if(!ready)return;
+      const sc=sceneRef, onScene=el("th-scene").checked, onRobot=el("th-robot").checked;
+      const robotSet=new Set(robotMats.map(([m])=>m)), envSet=new Set(envOps.map(([m])=>m));
+      envSet.forEach(m=>m.unfreeze&&m.unfreeze());
+      restore(o=>o===sc||envSet.has(o)||robotSet.has(o));
+      if(onScene){sc.clearColor=new BABYLON.Color4(.008,.043,.094,1);sc.fogColor=C("#061426");envOps.forEach(([m,fn])=>fn(m))}
+      if(onRobot)robotMats.forEach(([m,to])=>{m.albedoColor=C(to).toLinearSpace();m.metallic=0;m.roughness=.6}); // PLA fosco (albedo PBR em espaço linear)
+      // ETAPA 9: congela os materiais do ambiente só DEPOIS de 2 frames com as cores novas
+      // (material congelado não reenvia uniforms; congelar antes deixaria a cor antiga na GPU)
+      const gen=++freezeGen;
+      sc.onAfterRenderObservable.addOnce(()=>sc.onAfterRenderObservable.addOnce(()=>{if(gen===freezeGen)envSet.forEach(m=>m.freeze&&m.freeze())}));
+    }
+    el("th-scene").onchange=()=>{try{localStorage.setItem("atlas_th_scene",el("th-scene").checked?"1":"0")}catch(e){}apply()};
+    el("th-robot").onchange=()=>{try{localStorage.setItem("atlas_th_robot",el("th-robot").checked?"1":"0")}catch(e){}apply()};
+    return {init,apply};
+  })();
+
+  // ----- ETAPA 7: painel compacto no headset -----
+  // Plano 3D com DynamicTexture (sem biblioteca extra), criado só na primeira entrada em VR
+  // (ou na pré-visualização). Não é "pickable", não tem parent em nós do braço e não toca no rig.
+  const xrp={mesh:null,tex:null,sig:"",on:false,W:1024,H:600};
+  const TOK=(()=>{const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
+    return {panel:"rgba(5,22,42,.94)",cyan:g("--atlas-cyan"),cyan2:g("--atlas-cyan-soft"),text:g("--atlas-text"),
+      text2:g("--atlas-text-secondary"),ok:g("--atlas-success"),warn:g("--atlas-warning"),danger:g("--atlas-danger")}})();
+  const sCol=st=>({ok:TOK.ok,warn:TOK.warn,live:TOK.warn,danger:TOK.danger,info:TOK.cyan}[st]||TOK.text2);
+  function ensureXRPanel(){
+    if(xrp.mesh)return;
+    const Bb=BABYLON, sc=sceneRef;
+    xrp.tex=new Bb.DynamicTexture("atlas-xr-tex",{width:xrp.W,height:xrp.H},sc,true);xrp.tex.hasAlpha=true;
+    xrp.tex.wrapU=Bb.Texture.WRAP_ADDRESSMODE;xrp.tex.uScale=-1; // cena em sistema destro: desespelha o texto
+    const m=new Bb.StandardMaterial("atlas-xr-mat",sc);
+    m.diffuseTexture=xrp.tex;m.useAlphaFromDiffuseTexture=true;m.emissiveColor=Bb.Color3.White();
+    m.disableLighting=true;m.backFaceCulling=false;m.fogEnabled=false;
+    const pl=Bb.MeshBuilder.CreatePlane("atlas-xr-panel",{width:.9,height:.9*xrp.H/xrp.W},sc);
+    pl.material=m;pl.isPickable=false;pl.billboardMode=Bb.Mesh.BILLBOARDMODE_Y;pl.setEnabled(false);
+    xrp.mesh=pl;
+  }
+  function placeXRPanel(){ // ao lado do braço, à direita de quem olha, na altura dos olhos sentados
+    const Bb=BABYLON, cam=(typeof inXR!=="undefined"&&inXR&&xrCamRef)||sceneRef.activeCamera;
+    const base=sceneRef.getTransformNodeByName("j_waist");
+    const c=base?base.getAbsolutePosition().clone():new Bb.Vector3(0,.7,-1.3);
+    const r=cam.getDirection(Bb.Vector3.Right());r.y=0;if(r.lengthSquared()<1e-6)r.set(1,0,0);r.normalize();
+    xrp.mesh.position.copyFrom(c.add(r.scale(.8)).add(new Bb.Vector3(0,.55,0)));
+  }
+  function drawXRPanel(content){
+    const sig=JSON.stringify(content); if(sig===xrp.sig)return; xrp.sig=sig;
+    const g=xrp.tex.getContext(), W=xrp.W, H=xrp.H, ch=34;
+    g.clearRect(0,0,W,H);
+    g.beginPath();g.moveTo(ch,0);g.lineTo(W,0);g.lineTo(W,H-ch);g.lineTo(W-ch,H);g.lineTo(0,H);g.lineTo(0,ch);g.closePath();
+    g.fillStyle=TOK.panel;g.fill();g.lineWidth=content.hands.state==="active"?8:4;
+    g.strokeStyle=content.hands.state==="active"?TOK.ok:TOK.cyan;g.stroke();
+    const txt=(t,x,y,font,col,align)=>{g.font=font;g.fillStyle=col;g.textAlign=align||"left";g.fillText(t,x,y)};
+    const dot=(x,y,col,filled)=>{g.beginPath();g.arc(x,y,9,0,7);if(filled){g.fillStyle=col;g.fill()}else{g.lineWidth=3;g.strokeStyle=col;g.stroke()}};
+    // cabeçalho
+    txt("ATLAS",40,78,"800 58px Segoe UI, sans-serif",TOK.text);
+    txt("DIGITAL TWIN",44,118,"700 30px Segoe UI, sans-serif",TOK.cyan2);
+    txt(content.mode.t.replace(/^[●◐○]\s*/,"").toUpperCase(),W-40,78,"800 30px Segoe UI, sans-serif",sCol(content.mode.s),"right");
+    g.fillStyle=TOK.cyan;g.globalAlpha=.35;g.fillRect(40,140,W-80,2);g.globalAlpha=1;
+    // coluna esquerda: mãos
+    const hc=content.hands, colW=460;
+    txt("MÃOS",40,196,"700 30px Segoe UI, sans-serif",TOK.text2);
+    let fs=36;g.font=`800 ${fs}px Segoe UI, sans-serif`;
+    while(g.measureText(hc.t).width>colW&&fs>28){fs-=2;g.font=`800 ${fs}px Segoe UI, sans-serif`}
+    txt(hc.t,40,248,g.font,sCol(hc.s));
+    if(hc.sub)txt(hc.sub,40,292,"600 30px Segoe UI, sans-serif",TOK.text2);
+    else if(hc.state!=="unavailable"){ // presença de cada mão
+      txt("ESQ",40,292,"700 30px Segoe UI, sans-serif",TOK.text2);dot(116,282,hc.L?TOK.ok:TOK.text2,hc.L);
+      txt("DIR",150,292,"700 30px Segoe UI, sans-serif",TOK.text2);dot(222,282,hc.R?TOK.ok:TOK.text2,hc.R);
+    }
+    if(hc.bar!=null){ // aproximação da pinça esquerda (exibição; o limiar real é CFG.pinchOn)
+      g.fillStyle="rgba(145,175,197,.25)";g.fillRect(40,318,colW,14);
+      g.fillStyle=TOK.cyan;g.fillRect(40,318,colW*hc.bar,14);
+    }
+    if(hc.instr){ // instrução contextual com quebra de linha (máx. 4 linhas)
+      g.font="600 30px Segoe UI, sans-serif";g.fillStyle=TOK.text;g.textAlign="left";
+      const words=hc.instr.split(" "), lines=[];let ln="";
+      words.forEach(w=>{const t=ln?ln+" "+w:w;if(g.measureText(t).width>colW&&ln){lines.push(ln);ln=w}else ln=t});
+      if(ln)lines.push(ln);
+      lines.slice(0,4).forEach((l,i)=>g.fillText(l,40,384+i*38));
+    }
+    // coluna direita: articulações
+    content.joints.forEach(([tag,name,val,sel],i)=>{
+      const y=200+i*58;
+      txt(tag,540,y,"700 32px Consolas, monospace",TOK.cyan);
+      txt(name,630,y,"600 30px Segoe UI, sans-serif",TOK.text2);
+      txt(val,W-40,y,"700 34px Consolas, monospace",sel?TOK.cyan2:TOK.text,"right");
+    });
+    // rodapé: conexões
+    g.fillStyle=TOK.cyan;g.globalAlpha=.2;g.fillRect(40,H-96,W-80,2);g.globalAlpha=1;
+    content.foot.forEach(([k,st,t],i)=>{
+      const x=40+i*480, on=st==="ok";
+      txt(k,x,H-38,"700 30px Segoe UI, sans-serif",TOK.text2);
+      const kw=g.measureText(k).width;
+      dot(x+kw+22,H-48,sCol(st),on||st==="warn"||st==="danger");
+      txt(t.replace(/^[●◐○]\s*/,""),x+kw+42,H-38,"600 30px Segoe UI, sans-serif",sCol(st));
+    });
+    xrp.tex.update();
+  }
+  // ----- ETAPA 8: feedback de hand tracking — SOMENTE LEITURA -----
+  // Usa as mesmas consultas do código original (getHandByHandedness / getJointMesh) e a
+  // variável `follow` que handsStep() já calcula. Mapping, gesto, threshold e cálculo intactos.
+  const HSTATE={
+    unavailable:{s:"warn",t:"HAND TRACKING INDISPONÍVEL",i:"Ative o rastreamento de mãos no Quest: Configurações → Movimento e controladores."},
+    searching:  {s:"off", t:"○ PROCURANDO MÃOS",i:"Mostre as mãos à frente do headset."},
+    detected:   {s:"info",t:"● MÃOS DETECTADAS",i:"Use a mão esquerda para habilitar o controle: faça a pinça (polegar + indicador)."},
+    armed:      {s:"info",t:"● CONTROLE ARMADO",sub:"pinça esquerda detectada",i:"Controle habilitado. Use a mão direita para movimentar o braço."},
+    active:     {s:"ok",  t:"● MOVIMENTO ATIVO",sub:"pinça esquerda + mão direita",i:"Solte a pinça esquerda para parar."}};
+  const hands={state:"searching",left:false,right:false,pinch:null,activeMs:0,learned:false,lastT:0};
+  try{hands.learned=localStorage.getItem("atlas_hands_learned")==="1"}catch(e){}
+  function readHands(){
+    const hf=typeof handFeat!=="undefined"?handFeat:null;
+    if(!hf){hands.state="unavailable";hands.left=hands.right=false;hands.pinch=null;return hands}
+    const HJ=BABYLON.WebXRHandJoint;
+    let L=null,R=null;try{L=hf.getHandByHandedness("left");R=hf.getHandByHandedness("right")}catch(e){}
+    const jp=(h,j)=>{try{const m=h&&h.getJointMesh(j);return m?m.getAbsolutePosition():null}catch(e){return null}};
+    const lt=jp(L,HJ.THUMB_TIP), li=jp(L,HJ.INDEX_FINGER_TIP);
+    hands.left=!!(lt&&li);
+    hands.right=!!(jp(R,HJ.WRIST)&&jp(R,HJ.INDEX_FINGER_TIP)&&jp(R,HJ.THUMB_TIP));
+    hands.pinch=hands.left?BABYLON.Vector3.Distance(lt,li):null;
+    const f=typeof follow!=="undefined"&&!!follow;
+    hands.state=!L&&!R?"searching":f&&hands.right?"active":f?"armed":"detected";
+    // "compreensão": após 3 s acumulados em movimento ativo, as instruções somem (lembrado no navegador)
+    const now=performance.now(), dt=hands.lastT?Math.min(now-hands.lastT,500):0; hands.lastT=now;
+    if(hands.state==="active"&&!hands.learned){
+      hands.activeMs+=dt;
+      if(hands.activeMs>=3000){hands.learned=true;try{localStorage.setItem("atlas_hands_learned","1")}catch(e){}}
+    }
+    return hands;
+  }
+  function handsContent(){
+    const h=readHands(), st=HSTATE[h.state];
+    const pinchOn=typeof CFG!=="undefined"?CFG.pinchOn:.03;
+    const bar=h.state==="detected"&&h.pinch!=null?Math.round(Math.min(Math.max((.08-h.pinch)/(.08-pinchOn),0),1)*10)/10:null;
+    const instr=(h.learned&&h.state!=="unavailable"&&h.state!=="searching")?null:st.i;
+    return {state:h.state,s:st.s,t:st.t,sub:st.sub||null,L:h.left,R:h.right,bar,instr};
+  }
+
+  function xrPanelContent(){
+    const J5=JOINTS.map(([k,j,l])=>[j||"",l.toUpperCase(),fmt(S[k]),selected===k]);
+    return {
+      mode:stat["chip-mode"]||{s:"info",t:"Simulação"},
+      hands:handsContent(),
+      joints:J5,
+      foot:[["MQTT",(stat["chip-mqtt"]||{}).s||"off",(stat["chip-mqtt"]||{}).t||"offline"],
+            ["ESP32",(stat["chip-esp"]||{}).s||"off",(stat["chip-esp"]||{}).t||"sem telemetria"]],
+    };
+  }
+  let xrPreview=false;
+  el("xr-preview").onchange=()=>{xrPreview=el("xr-preview").checked};
+  setInterval(()=>{
+    const ready=typeof pose!=="undefined"&&!!pose&&typeof sceneRef!=="undefined"&&!!sceneRef;
+    const on=ready&&((typeof inXR!=="undefined"&&inXR)||xrPreview);
+    if(on&&!xrp.mesh)ensureXRPanel();
+    if(!xrp.mesh)return;
+    if(on!==xrp.on){xrp.on=on;xrp.mesh.setEnabled(on);if(on)placeXRPanel()}
+    if(on)drawXRPanel(xrPanelContent());
+  },100);
+
+  // Leitura (somente) para testes e diagnóstico
+  window.ATLAS_UI=Object.freeze({
+    xrPanel:()=>({exists:!!xrp.mesh,enabled:!!(xrp.mesh&&xrp.mesh.isEnabled()),content:xrp.sig?JSON.parse(xrp.sig):null}),
+    hands:()=>({state:hands.state,left:hands.left,right:hands.right,pinch:hands.pinch,learned:hands.learned}),
+    perf:()=>({...perf.report})});
+
+  let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
+  if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";
+  show(start||null);
 })();
 </script>
 </body>

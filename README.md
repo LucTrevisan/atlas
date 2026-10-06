@@ -33,3 +33,41 @@ Sempre use usuário/senha e ACL para os tópicos `braco/#`.
 
 ## Payload
 `braco/cmd` e `braco/estado`: `{"waist":12.5,"shoulder":-8,"elbow":40,"pitch":-5,"grip":18}` (graus).
+
+---
+
+# ATLAS — Robotic Digital Twin (interface)
+
+Interface ATLAS aplicada sobre este app **sem alterar a lógica** (o script principal do `index.html` é byte a byte idêntico ao do commit `ba4919b`; ver [MOVEMENT_BASELINE.md](MOVEMENT_BASELINE.md) e [CHANGELOG.md](CHANGELOG.md)).
+
+## Navegação
+| Área | Conteúdo |
+|---|---|
+| **Cabeçalho** | ATLAS · abas · chips (modo, MQTT, ESP32, VR) · 📽 apresentação · ? ajuda · **⛔ PARADA (E-STOP)** sempre visível |
+| **Digital Twin** | leitura J1–J4/Garra, destaque por articulação, marcadores no modelo, **vistas Frontal/Lateral/Topo/Detalhe**, aparência (ambiente Digital Twin / laboratório; cores do robô físico / modelo) |
+| **Controle** | sliders (limites reais; garra 0 = fechada → 30 = aberta), **Demonstração guiada** (6 etapas, tecla Espaço), Zerar; cartão da articulação selecionada |
+| **Telemetria** | MQTT, ESP32 (online pelo `<prefixo>/estado`), comando × robô real por junta, último pacote, taxa |
+| **WebXR** | diagnóstico (HTTPS, WebXR, sessão VR, hand tracking), Entrar em VR, estados das mãos, pré-visualização do painel do headset |
+| **Configurações** | broker MQTT (senha não é salva), modo de operação, tópicos (`/cmd`, `/estado`, `/estop`), log MQTT |
+
+- **E-STOP**: botão ⛔ PARADA ou tecla **E** → banner "PARADA DE EMERGÊNCIA — comandos físicos bloqueados" com **Rearmar sistema** (mesma lógica `setEstop`). Publica `<prefixo>/estop` = 1/0 (QoS 1).
+- **Demonstração guiada**: legenda HUD "MODO DEMONSTRAÇÃO · Etapa i/6" e destaque da articulação da etapa no modelo.
+- **Modo apresentação** (P): cena limpa + gráfico de telemetria; o E-STOP continua acessível.
+- **Em VR**: painel compacto ao lado do braço (modo/E-STOP, mãos, articulações, MQTT, ESP32).
+
+## Testes (`tests/movement`)
+```bash
+cd tests/movement && npm install
+npm test         # golden anti-regressão + E-STOP, confirmação, vistas, mãos, Digital Twin… (exit 1 se algo mudar)
+node qa.mjs      # acessibilidade (axe-core WCAG 2.1 AA), teclado, responsividade, contraste
+node bench.mjs   # taxa efetiva de publish MQTT e FPS
+```
+
+## Validação manual (Meta Quest e hardware)
+```text
+[ ] VR: painel do headset legível; mãos: procurando → detectadas → controle armado → movimento ativo
+[ ] MQTT conectado e ESP32 "online"; coluna "Robô real" acompanha o comando
+[ ] Enviar comandos (confirmação) → robô segue sliders/Demonstração/Zerar
+[ ] Tecla E / ⛔ PARADA → robô para (watchdog 800 ms; o firmware atual não assina /estop) · Rearmar libera
+[ ] Espelhar estado → o Digital Twin segue o robô físico
+```

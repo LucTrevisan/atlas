@@ -220,7 +220,7 @@ try {
     const out = [];
     const ok = (cond, msg) => out.push((cond ? "✓ " : "✗ ") + msg);
     const st = () => page.evaluate(() => ({ snd: $("snd").checked, mir: $("mir").checked, dlg: !!document.getElementById("dlg-real")?.open }));
-    if (!(await page.$("#dlg-real"))) return ["(diálogo de confirmação ausente — verificação ignorada)"];
+    if (await page.$("#dlg-real")) { // diálogo customizado (master); a versão main usa confirm() nativo — testado adiante
     await page.evaluate(() => { document.getElementById("t-cfg").click(); if (document.getElementById("p-cfg").hidden) document.getElementById("t-cfg").click(); });
     await page.evaluate(() => { $("mir").checked = true; $("mir").dispatchEvent(new Event("change")); });
     await page.click("#snd"); let s = await st();
@@ -235,6 +235,8 @@ try {
     ok(!s.dlg && s.snd && !s.mir, "Confirmar marca a caixa e executa o onchange original (desmarca espelho)");
     await page.click("#snd"); s = await st();
     ok(!s.dlg && !s.snd, "desmarcar não pede confirmação");
+    }
+    if (await page.evaluate(() => !!window.ATLAS_UI)) { // camada ATLAS
     // trilho dos sliders acompanha o Demo (loop rAF sob demanda)
     const fill = () => page.evaluate(() => inputs.waist[0].style.getPropertyValue("--b") + "|" + inputs.waist[1].textContent);
     await page.evaluate(() => { document.getElementById("t-ctrl").click(); if (document.getElementById("p-ctrl").hidden) document.getElementById("t-ctrl").click(); $("demo").click(); });
@@ -243,6 +245,7 @@ try {
     for (let t = 0; t < 60 && f2 === f1; t++) { await new Promise(r => setTimeout(r, 250)); f2 = await fill(); }
     await page.evaluate(() => { $("demo").click(); $("rst").click(); });
     ok(f1 !== f2, "trilho e valor do slider acompanham o Demo");
+    }
     // ETAPA 4: seleção / destaque (não destrutivo)
     if (await page.$("#hotspots")) {
       await page.waitForFunction(() => sceneRef.effectLayers && sceneRef.effectLayers.some(l => l.name === "atlas-hl"), { timeout: 30000 }).catch(() => {});
@@ -434,6 +437,7 @@ try {
         window.mqtt = { connect: () => ({ connected: true, on: (e, f) => (lst[e] ||= []).push(f), subscribe() {}, publish(t, p) { window.__pub.push([t, String(p)]); }, end() {} }) };
         $("url").value = "wss://t.invalid:8884/mqtt"; $("con").click(); (lst.connect || []).forEach(f => f());
         const t = document.getElementById("t-cfg"); if (t && document.getElementById("p-cfg").hidden) t.click();
+        const dt = $("snd").closest("details"); if (dt) dt.open = true; // layout original: MQTT dentro de <details>
       });
       await W(300);
       dialogAction = "dismiss"; const nd = dialogs.length; await page.click("#snd"); await W(200);
@@ -442,12 +446,14 @@ try {
       dialogAction = "accept"; await page.click("#snd"); await W(200);
       st = await page.evaluate(() => $("snd").checked); ok(st, "confirmação nativa: Confirmar habilita o envio");
       await page.evaluate(() => { window.__pub.length = 0; });
-      await page.keyboard.press("e"); await W(700);
+      await page.keyboard.press("e"); await page.waitForFunction(() => estop === true, { timeout: 5000 }).catch(() => {});
+      // conta /cmd só DEPOIS do E-STOP ativo (antes disso o loop de 20 Hz publica legitimamente)
+      await page.evaluate(() => { window.__afterStop = window.__pub.length; }); await W(700);
       await page.waitForFunction(() => /E-STOP|PARADA/i.test((document.querySelector("#chip-mode .v") || document.getElementById("estop")).textContent), { timeout: 5000 }).catch(() => {});
       const e1 = await page.evaluate(() => ({ estop, snd: $("snd").checked, banner: getComputedStyle(document.getElementById("estopBanner")).display,
-        chip: (document.querySelector("#chip-mode .v") || {}).textContent || "", cmd: window.__pub.filter(p => /\/cmd$/.test(p[0])).length,
+        chip: (document.querySelector("#chip-mode .v") || {}).textContent || "", cmd: window.__pub.slice(window.__afterStop).filter(p => /\/cmd$/.test(p[0])).length,
         stop: (window.__pub.find(p => /\/estop$/.test(p[0])) || [])[1] }));
-      ok(e1.estop && !e1.snd && e1.banner !== "none" && e1.cmd === 0 && e1.stop === "1", "tecla E: E-STOP ativo, envio desligado, 0 comandos, /estop=1, banner visível");
+      ok(e1.estop && !e1.snd && e1.banner !== "none" && e1.cmd === 0 && e1.stop === "1", "tecla E: E-STOP ativo, envio desligado, 0 comandos, /estop=1, banner visível " + JSON.stringify(e1));
       ok(!(await page.$("#chip-mode")) || /E-STOP|PARADA/i.test(e1.chip), "header indica E-STOP (" + e1.chip + ")");
       await page.click("#snd"); await W(200);
       ok(!(await page.evaluate(() => $("snd").checked)), "durante o E-STOP o envio não pode ser religado");
