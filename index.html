@@ -110,6 +110,8 @@ h3:first-child{margin-top:0}
 .readout dt{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--atlas-text-secondary)}
 .readout dt b{color:var(--atlas-cyan);font-weight:700;margin-right:6px}
 .readout dd{text-align:right;font:13px var(--atlas-font-mono);font-variant-numeric:tabular-nums;color:var(--atlas-text)}
+.readout.wide{grid-template-columns:auto minmax(0,1fr);column-gap:12px}
+.readout.wide dt{white-space:nowrap}
 .readout dd[data-s=ok]{color:var(--atlas-success)}
 .readout dd[data-s=warn]{color:var(--atlas-warning)}
 .readout dd[data-s=danger]{color:var(--atlas-danger)}
@@ -197,6 +199,8 @@ input[type=range]:focus-visible{outline:2px solid var(--atlas-cyan);outline-offs
 .conn-box .t{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .conn-box[data-s=ok] .t{color:var(--atlas-success)}.conn-box[data-s=warn] .t{color:var(--atlas-warning)}.conn-box[data-s=danger] .t{color:var(--atlas-danger)}
 .conn-box #mq{grid-column:2}
+.conn-box .why{grid-column:2;font-size:11px;line-height:1.4;color:var(--atlas-text-secondary)}
+.b button:disabled{opacity:.4;cursor:not-allowed;filter:none;box-shadow:none}
 .conn-box .hst{text-transform:none;letter-spacing:0;font-weight:500;color:var(--atlas-text-secondary)}
 .pw-row{position:relative}
 .pw-row input{padding-right:64px}
@@ -308,6 +312,7 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
       <span class="chip" id="chip-demo" data-s="info" hidden><span class="v">▶ Demo</span></span>
       <span class="chip" id="chip-mqtt" data-s="off"><span class="k">MQTT</span><span class="v">○ offline</span></span>
       <span class="chip" id="chip-esp"  data-s="off"><span class="k">ESP32</span><span class="v">○ sem telemetria</span></span>
+      <span class="chip" id="chip-xr"   data-s="off"><span class="k">VR</span><span class="v">○ verificando</span></span>
     </div>
   </header>
 
@@ -370,19 +375,31 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
         </section>
 
         <section role="tabpanel" id="p-xr" aria-labelledby="t-xr" hidden>
-          <h3>Disponibilidade</h3>
-          <dl class="readout">
+          <div class="conn-box" id="xr-box" data-s="off" role="status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="t" id="xr-t">Verificando WebXR…</span>
+            <div class="why" id="xr-why"></div>
+          </div>
+          <div class="b"><button id="xr-enter" type="button" disabled>🥽 Entrar em VR</button></div>
+          <h3>Diagnóstico</h3>
+          <dl class="readout wide">
             <dt>Contexto seguro (HTTPS)</dt><dd id="xr-secure">—</dd>
             <dt>API WebXR no navegador</dt><dd id="xr-api">—</dd>
+            <dt>Sessão imersiva (VR)</dt><dd id="xr-sess" data-s="off">verificando</dd>
+            <dt>Hand tracking</dt><dd id="xr-hands" data-s="off">—</dd>
+            <dt>Robô real em VR</dt><dd id="xr-snd" data-s="off">—</dd>
           </dl>
           <h3>Como usar (hand tracking)</h3>
           <ol class="steps">
             <li>Ative <b>Enviar comandos</b> em Configurações antes de colocar o headset (se for comandar o robô real).</li>
-            <li>Entre em VR pelo botão 🥽 no canto inferior direito.</li>
+            <li>Entre em VR (botão acima ou 🥽 no canto inferior direito).</li>
             <li><b>Mão esquerda:</b> faça a pinça (polegar + indicador) para habilitar o movimento. Solte para parar.</li>
             <li><b>Mão direita:</b> posiciona o pulso do robô; a abertura entre polegar e indicador controla a garra.</li>
           </ol>
           <p class="hint">No Quest: Configurações → Movimento e controladores → Rastreamento de mãos ligado.</p>
+          <h3>Painel no headset</h3>
+          <p class="hint" style="margin-top:0">Em VR, um painel compacto aparece ao lado do braço (estado, articulações, MQTT, ESP32).</p>
+          <label class="check"><input type="checkbox" id="xr-preview"> Pré-visualizar o painel do headset nesta tela</label>
         </section>
 
         <section role="tabpanel" id="p-cfg" aria-labelledby="t-cfg" hidden>
@@ -772,12 +789,15 @@ function tick(dt){
   const ESP_FRESH=1500; // ESP32 publica a cada 100 ms; >1,5 s sem pacote = sem dados
   const fmt=v=>(typeof v==="number"&&isFinite(v)?v.toFixed(1):"—")+"°";
 
-  el("xr-secure").textContent=window.isSecureContext?"sim":"não";
-  el("xr-secure").dataset.s=window.isSecureContext?"ok":"danger";
-  el("xr-api").textContent=navigator.xr?"presente":"ausente";
-  el("xr-api").dataset.s=navigator.xr?"ok":"warn";
+  // ----- ETAPA 7: diagnóstico WebXR (somente leitura) -----
+  const xrInfo={secure:!!window.isSecureContext,api:!!navigator.xr,vr:null};
+  if(navigator.xr&&typeof navigator.xr.isSessionSupported==="function")
+    navigator.xr.isSessionSupported("immersive-vr").then(v=>{xrInfo.vr=!!v}).catch(()=>{xrInfo.vr=false});
+  else xrInfo.vr=false;
+  const vrButton=()=>document.querySelector(".babylonVRicon");
 
-  const chip=(id,s,txt)=>{const c=el(id);if(c.dataset.s!==s)c.dataset.s=s;const v=c.querySelector(".v");if(v.textContent!==txt)v.textContent=txt};
+  const stat={}; // último estado exibido nos chips (reaproveitado pelo painel do headset)
+  const chip=(id,s,txt)=>{stat[id]={s,t:txt};const c=el(id);if(c.dataset.s!==s)c.dataset.s=s;const v=c.querySelector(".v");if(v.textContent!==txt)v.textContent=txt};
   const set=(id,s,txt)=>{const d=el(id);if(d.dataset.s!==s)d.dataset.s=s;if(d.textContent!==txt)d.textContent=txt};
 
   // ----- Estado operacional (derivado; nunca ambíguo) -----
@@ -843,8 +863,31 @@ function tick(dt){
       set("tele-rate",espOn?"ok":"off",espOn&&esp.times.length>1?(esp.times.length/2).toFixed(1)+" Hz":"—");
       set("tele-tx",snd&&con?"warn":"off",snd&&con?"20 Hz · QoS 0 (configurado)":"parado");
     }
+
+    // WebXR: veredito único e motivo claro (somente leitura)
+    let xs,xt,xw;
+    if(!xrInfo.secure)      {xs="danger";xt="VR indisponível";xw="A página não está em HTTPS. WebXR exige conexão segura — abra pelo endereço https://."}
+    else if(!xrInfo.api)    {xs="warn";xt="Navegador sem WebXR";xw="Abra no Meta Quest Browser (ou outro navegador com WebXR). A pré-visualização 3D continua funcionando."}
+    else if(xrInfo.vr===null){xs="off";xt="Verificando suporte…";xw=""}
+    else if(!xrInfo.vr)     {xs="warn";xt="Sem sessão VR disponível";xw="Nenhum headset compatível neste dispositivo. A pré-visualização 3D continua funcionando."}
+    else if(!vrButton())    {xs="warn";xt="Preparando VR…";xw="A interface WebXR do Babylon ainda não foi criada (aguarde o modelo carregar)."}
+    else                    {xs="ok";xt="Pronto para VR";xw="Coloque o headset e clique em Entrar em VR."}
+    const xb=el("xr-box"); if(xb.dataset.s!==xs)xb.dataset.s=xs;
+    if(el("xr-t").textContent!==xt)el("xr-t").textContent=xt;
+    if(el("xr-why").textContent!==xw)el("xr-why").textContent=xw;
+    el("xr-enter").disabled=xs!=="ok";
+    chip("chip-xr",xs==="ok"?"ok":xs==="off"?"off":"warn",xs==="ok"?"● pronto":xs==="off"?"○ verificando":"○ indisponível");
+    if(active==="xr"){
+      set("xr-secure",xrInfo.secure?"ok":"danger",xrInfo.secure?"sim":"não");
+      set("xr-api",xrInfo.api?"ok":"warn",xrInfo.api?"presente":"ausente");
+      set("xr-sess",xrInfo.vr?"ok":xrInfo.vr===null?"off":"warn",xrInfo.vr?"suportada":xrInfo.vr===null?"verificando":"não suportada");
+      const hf=typeof handFeat!=="undefined"&&!!handFeat;
+      set("xr-hands",hf?"ok":"off",hf?"recurso habilitado":xrInfo.vr?"não habilitado":"—");
+      set("xr-snd",snd?"warn":"off",snd?(con?"ligado — o robô físico acompanha":"armado — MQTT offline"):"desligado — só o Digital Twin se move");
+    }
   }
   setInterval(refresh,250);
+  el("xr-enter").onclick=()=>{const b=vrButton();if(b)b.click()}; // aciona o botão VR do próprio Babylon
 
   // ----- ETAPA 3: controles — camada visual sobre os sliders EXISTENTES -----
   // Os <input range> continuam sendo os criados pelo script principal, com o mesmo oninput
@@ -1015,6 +1058,92 @@ function tick(dt){
     if(typeof pose==="undefined"||!pose||typeof sceneRef==="undefined"||!sceneRef)return;
     clearInterval(waitTwin);initTwin();
   },200);
+
+  // ----- ETAPA 7: painel compacto no headset -----
+  // Plano 3D com DynamicTexture (sem biblioteca extra), criado só na primeira entrada em VR
+  // (ou na pré-visualização). Não é "pickable", não tem parent em nós do braço e não toca no rig.
+  const xrp={mesh:null,tex:null,sig:"",on:false,W:1024,H:600};
+  const TOK=(()=>{const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
+    return {panel:"rgba(5,22,42,.94)",cyan:g("--atlas-cyan"),cyan2:g("--atlas-cyan-soft"),text:g("--atlas-text"),
+      text2:g("--atlas-text-secondary"),ok:g("--atlas-success"),warn:g("--atlas-warning"),danger:g("--atlas-danger")}})();
+  const sCol=st=>({ok:TOK.ok,warn:TOK.warn,live:TOK.warn,danger:TOK.danger,info:TOK.cyan}[st]||TOK.text2);
+  function ensureXRPanel(){
+    if(xrp.mesh)return;
+    const Bb=BABYLON, sc=sceneRef;
+    xrp.tex=new Bb.DynamicTexture("atlas-xr-tex",{width:xrp.W,height:xrp.H},sc,true);xrp.tex.hasAlpha=true;
+    xrp.tex.wrapU=Bb.Texture.WRAP_ADDRESSMODE;xrp.tex.uScale=-1; // cena em sistema destro: desespelha o texto
+    const m=new Bb.StandardMaterial("atlas-xr-mat",sc);
+    m.diffuseTexture=xrp.tex;m.useAlphaFromDiffuseTexture=true;m.emissiveColor=Bb.Color3.White();
+    m.disableLighting=true;m.backFaceCulling=false;m.fogEnabled=false;
+    const pl=Bb.MeshBuilder.CreatePlane("atlas-xr-panel",{width:.9,height:.9*xrp.H/xrp.W},sc);
+    pl.material=m;pl.isPickable=false;pl.billboardMode=Bb.Mesh.BILLBOARDMODE_Y;pl.setEnabled(false);
+    xrp.mesh=pl;
+  }
+  function placeXRPanel(){ // ao lado do braço, à direita de quem olha, na altura dos olhos sentados
+    const Bb=BABYLON, cam=(typeof inXR!=="undefined"&&inXR&&xrCamRef)||sceneRef.activeCamera;
+    const base=sceneRef.getTransformNodeByName("j_waist");
+    const c=base?base.getAbsolutePosition().clone():new Bb.Vector3(0,.7,-1.3);
+    const r=cam.getDirection(Bb.Vector3.Right());r.y=0;if(r.lengthSquared()<1e-6)r.set(1,0,0);r.normalize();
+    xrp.mesh.position.copyFrom(c.add(r.scale(.8)).add(new Bb.Vector3(0,.55,0)));
+  }
+  function drawXRPanel(content){
+    const sig=JSON.stringify(content); if(sig===xrp.sig)return; xrp.sig=sig;
+    const g=xrp.tex.getContext(), W=xrp.W, H=xrp.H, ch=34;
+    g.clearRect(0,0,W,H);
+    g.beginPath();g.moveTo(ch,0);g.lineTo(W,0);g.lineTo(W,H-ch);g.lineTo(W-ch,H);g.lineTo(0,H);g.lineTo(0,ch);g.closePath();
+    g.fillStyle=TOK.panel;g.fill();g.lineWidth=4;g.strokeStyle=TOK.cyan;g.stroke();
+    const txt=(t,x,y,font,col,align)=>{g.font=font;g.fillStyle=col;g.textAlign=align||"left";g.fillText(t,x,y)};
+    const dot=(x,y,col,filled)=>{g.beginPath();g.arc(x,y,9,0,7);if(filled){g.fillStyle=col;g.fill()}else{g.lineWidth=3;g.strokeStyle=col;g.stroke()}};
+    // cabeçalho
+    txt("ATLAS",40,78,"800 58px Segoe UI, sans-serif",TOK.text);
+    txt("DIGITAL TWIN",44,118,"700 30px Segoe UI, sans-serif",TOK.cyan2);
+    txt(content.mode.t.replace(/^[●◐○]\s*/,"").toUpperCase(),W-40,78,"800 30px Segoe UI, sans-serif",sCol(content.mode.s),"right");
+    g.fillStyle=TOK.cyan;g.globalAlpha=.35;g.fillRect(40,140,W-80,2);g.globalAlpha=1;
+    // coluna esquerda: mãos (ETAPA 8 detalha)
+    content.left.forEach(([t,font,col],i)=>txt(t,40,200+i*50,font,col));
+    // coluna direita: articulações
+    content.joints.forEach(([tag,name,val,sel],i)=>{
+      const y=200+i*58;
+      txt(tag,540,y,"700 32px Consolas, monospace",TOK.cyan);
+      txt(name,630,y,"600 30px Segoe UI, sans-serif",TOK.text2);
+      txt(val,W-40,y,"700 34px Consolas, monospace",sel?TOK.cyan2:TOK.text,"right");
+    });
+    // rodapé: conexões
+    g.fillStyle=TOK.cyan;g.globalAlpha=.2;g.fillRect(40,H-96,W-80,2);g.globalAlpha=1;
+    content.foot.forEach(([k,st,t],i)=>{
+      const x=40+i*480, on=st==="ok";
+      txt(k,x,H-38,"700 30px Segoe UI, sans-serif",TOK.text2);
+      const kw=g.measureText(k).width;
+      dot(x+kw+22,H-48,sCol(st),on||st==="warn"||st==="danger");
+      txt(t.replace(/^[●◐○]\s*/,""),x+kw+42,H-38,"600 30px Segoe UI, sans-serif",sCol(st));
+    });
+    xrp.tex.update();
+  }
+  function xrPanelContent(){
+    const J5=JOINTS.map(([k,j,l])=>[j||"",l.toUpperCase(),fmt(S[k]),selected===k]);
+    const hf=typeof handFeat!=="undefined"&&!!handFeat;
+    return {
+      mode:stat["chip-mode"]||{s:"info",t:"Simulação"},
+      left:[["HAND TRACKING","700 30px Segoe UI, sans-serif",TOK.text2],
+            [hf?"recurso habilitado":"indisponível","600 34px Segoe UI, sans-serif",hf?TOK.ok:TOK.warn]],
+      joints:J5,
+      foot:[["MQTT",(stat["chip-mqtt"]||{}).s||"off",(stat["chip-mqtt"]||{}).t||"offline"],
+            ["ESP32",(stat["chip-esp"]||{}).s||"off",(stat["chip-esp"]||{}).t||"sem telemetria"]],
+    };
+  }
+  let xrPreview=false;
+  el("xr-preview").onchange=()=>{xrPreview=el("xr-preview").checked};
+  setInterval(()=>{
+    const ready=typeof pose!=="undefined"&&!!pose&&typeof sceneRef!=="undefined"&&!!sceneRef;
+    const on=ready&&((typeof inXR!=="undefined"&&inXR)||xrPreview);
+    if(on&&!xrp.mesh)ensureXRPanel();
+    if(!xrp.mesh)return;
+    if(on!==xrp.on){xrp.on=on;xrp.mesh.setEnabled(on);if(on)placeXRPanel()}
+    if(on)drawXRPanel(xrPanelContent());
+  },100);
+
+  // Leitura (somente) para testes e diagnóstico
+  window.ATLAS_UI=Object.freeze({xrPanel:()=>({exists:!!xrp.mesh,enabled:!!(xrp.mesh&&xrp.mesh.isEnabled()),content:xrp.sig?JSON.parse(xrp.sig):null})});
 
   let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
   if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";

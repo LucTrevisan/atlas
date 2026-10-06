@@ -168,3 +168,31 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html` (CSS, HTML Telemetria/Configurações, script de UI), `tests/movement/run.mjs`, `tests/movement/bench.mjs` (novo), `CHANGELOG.md`.
+
+## ETAPA 7 — WEBXR UX (2026-10-06) — `v7-atlas-webxr`
+
+> A ETAPA 6 (Demonstração) não foi executada nesta rodada, por escolha do usuário (aguarda decisões "PARAR × PAUSAR" e narrativa por tempo).
+
+### Alterado
+- **Diagnóstico WebXR** (somente leitura): `window.isSecureContext`, `navigator.xr`, `navigator.xr.isSessionSupported("immersive-vr")`, recurso de hand tracking (`handFeat`) e estado do envio ao robô real.
+- **Veredito único com motivo**: "VR indisponível — página não está em HTTPS", "Navegador sem WebXR — use o Meta Quest Browser", "Sem sessão VR disponível", "Preparando VR…", "Pronto para VR".
+- **Botão "🥽 Entrar em VR"** no painel, habilitado só quando pronto; aciona o próprio botão VR do Babylon (mesmo caminho do usuário).
+- **Chip VR** no header (`● pronto` / `○ indisponível` / `○ verificando`).
+- **Painel compacto no headset**: plano 3D (0,9 m) com `DynamicTexture` (sem biblioteca extra), ao lado do braço, `BILLBOARDMODE_Y`, não "pickable", sem parent no rig, sem iluminação/neblina. Mostra ATLAS · modo (Simulação/Controle real…) · hand tracking · J1–J4/Garra · MQTT · ESP32. Criado só na 1ª entrada em VR; redesenhado no máximo a cada 100 ms e só quando o conteúdo muda. Textura desespelhada (`uScale=-1`, cena em sistema destro). Fontes ≥ 30 px (legibilidade no Quest).
+- **Pré-visualização** do painel do headset na tela (checkbox no painel WebXR).
+- Diagnóstico com rótulos sem quebra (`.readout.wide`).
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal idêntico; `createDefaultXRExperienceAsync`, feature de hand tracking, `onStateChangedObservable`, ocultação do `#ui` em VR e mensagens de `#st` inalterados.
+- A camada nova não escreve em `S`, `mode`, `demo`, `mq`, `follow`, `handFeat`, `inXR`, `xrCamRef`; atribui material apenas ao próprio painel.
+
+### Testado
+- `npm test`: APROVADO (12/12) + UX: veredito e motivo; botão Entrar só quando pronto; pré-visualização com 5 articulações; painel não pickable e sem parent; painel some ao desligar.
+- Screenshots: aba WebXR e painel do headset (pré-visualização).
+- **Não testável aqui:** sessão imersiva real no Meta Quest (validar posição/legibilidade do painel no headset).
+
+### Regressões
+- Nenhuma.
+
+### Arquivos modificados
+- `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.

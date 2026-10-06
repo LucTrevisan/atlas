@@ -294,6 +294,29 @@ try {
       ok(r5.stale === "◐ sem dados", "sem pacotes por >1,5 s → ESP32 sem dados");
       ok(r5.conn.startsWith("Conectado"), "status de conexão em Configurações");
     }
+    // ETAPA 7: WebXR — diagnóstico e painel do headset
+    if (await page.$("#xr-box")) {
+      const r7 = await page.evaluate(async () => {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        if (document.getElementById("p-xr").hidden) document.getElementById("t-xr").click();
+        await wait(600);
+        const res = { verdict: document.getElementById("xr-t").textContent, why: document.getElementById("xr-why").textContent,
+          chip: document.querySelector("#chip-xr .v").textContent, sess: document.getElementById("xr-sess").textContent,
+          enterDisabled: document.getElementById("xr-enter").disabled };
+        const bx = document.getElementById("xr-preview"); bx.checked = true; bx.dispatchEvent(new Event("change"));
+        await wait(500);
+        const pm = sceneRef.getMeshByName("atlas-xr-panel");
+        res.preview = ATLAS_UI.xrPanel(); res.pickable = pm && pm.isPickable; res.parent = pm && pm.parent && pm.parent.name;
+        bx.checked = false; bx.dispatchEvent(new Event("change")); await wait(300);
+        res.after = ATLAS_UI.xrPanel().enabled;
+        return res;
+      });
+      ok(/VR|WebXR|HTTPS/.test(r7.verdict) && r7.why.length > 10 && r7.sess !== "verificando", "WebXR: veredito e motivo claros (" + r7.verdict + ")");
+      ok(r7.enterDisabled === (r7.verdict !== "Pronto para VR"), "botão Entrar em VR só habilitado quando pronto");
+      ok(r7.preview.enabled && r7.preview.content && r7.preview.content.joints.length === 5, "painel do headset: pré-visualização com 5 articulações");
+      ok(r7.pickable === false && !r7.parent, "painel do headset não é pickable e não tem parent no rig");
+      ok(r7.after === false, "painel some ao desligar a pré-visualização");
+    }
     return out;
   })();
 } finally {
