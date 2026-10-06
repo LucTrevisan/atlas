@@ -46,6 +46,9 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 const pageErrors = [];
 page.on("pageerror", e => pageErrors.push(String(e.stack || e)));
+// diálogos nativos (confirm do "Enviar comandos" na versão main): aceitos por padrão; o teste de UX alterna
+let dialogAction = "accept"; const dialogs = [];
+page.on("dialog", d => { dialogs.push(d.message()); dialogAction === "accept" ? d.accept() : d.dismiss(); });
 
 let result, uxChecks = [];
 try {
@@ -79,7 +82,7 @@ try {
     // ---------- Estrutura estática (após um frame: pose(S) já aplicada) ----------
     await frame();
     out.static.J = J;
-    out.env = { status: $("st").textContent, secure: window.isSecureContext, xr: !!navigator.xr };
+    out.env = { status: $("st").textContent, secure: window.isSecureContext, xr: !!navigator.xr, atlas: !!window.ATLAS_UI };
     out.static.K = K;
     out.static.CFG = CFG;
     out.static.hierarchy = Object.fromEntries([...NODES, ...PARTS].map(n => [n, node(n).parent ? node(n).parent.name : null]));
@@ -121,11 +124,25 @@ try {
     // ---------- Demo (relógio congelado) ----------
     const realNow = performance.now.bind(performance);
     let fixed = null; performance.now = () => (fixed === null ? realNow() : fixed);
-    fixed = 100000; $("demo").click();
-    out.demo.btnWhileRunning = $("demo").textContent;
-    for (const T of [0, 0.5, 1.7, 3.3, 7.1, 12.9]) {
-      fixed = 100000 + T * 1000; await frame();
-      out.demo["t=" + T] = snap();
+    if (typeof demoStep === "function") {
+      // versão main: demonstração guiada (6 etapas de 5 s, suavização por dt). Executa demoStep
+      // diretamente com relógio e dt fixos (demo=false para o render loop não interferir).
+      fixed = 100000; $("demo").click(); out.demo.btnWhileRunning = $("demo").textContent; $("demo").click();
+      t0 = 100; out.demo.guided = true;
+      for (const T of [0, 0.5, 1.7, 3.3, 7.1, 12.9, 17.4, 23.2, 29.9]) {
+        Object.assign(S, { waist: 0, shoulder: 0, elbow: 0, pitch: 0, grip: 0 });
+        for (let i = 0; i < 90; i++) { fixed = 100000 + (T + i / 60) * 1000; demoStep(1 / 60); }
+        out.demo["t=" + T] = { S: Object.fromEntries(Object.entries(S).map(([k, v]) => [k, Math.round(v * 1e7) / 1e7])), cap: document.getElementById("cap").textContent };
+      }
+      await frame(); out.demo.lastPose = snap();
+      fixed = 100000; $("demo").click(); await frame();
+    } else {
+      fixed = 100000; $("demo").click();
+      out.demo.btnWhileRunning = $("demo").textContent;
+      for (const T of [0, 0.5, 1.7, 3.3, 7.1, 12.9]) {
+        fixed = 100000 + T * 1000; await frame();
+        out.demo["t=" + T] = snap();
+      }
     }
     setSlider("waist", 10); await frame();           // slider interrompe o Demo
     out.demo.sliderStopsDemo = { demo, btn: $("demo").textContent, S: { ...S } };
@@ -203,7 +220,7 @@ try {
     const out = [];
     const ok = (cond, msg) => out.push((cond ? "✓ " : "✗ ") + msg);
     const st = () => page.evaluate(() => ({ snd: $("snd").checked, mir: $("mir").checked, dlg: !!document.getElementById("dlg-real")?.open }));
-    if (!(await page.$("#dlg-real"))) return ["(diálogo de confirmação ausente — verificação ignorada)"];
+    if (await page.$("#dlg-real")) { // diálogo customizado (master); a versão main usa confirm() nativo — testado adiante
     await page.evaluate(() => { document.getElementById("t-cfg").click(); if (document.getElementById("p-cfg").hidden) document.getElementById("t-cfg").click(); });
     await page.evaluate(() => { $("mir").checked = true; $("mir").dispatchEvent(new Event("change")); });
     await page.click("#snd"); let s = await st();
@@ -218,6 +235,8 @@ try {
     ok(!s.dlg && s.snd && !s.mir, "Confirmar marca a caixa e executa o onchange original (desmarca espelho)");
     await page.click("#snd"); s = await st();
     ok(!s.dlg && !s.snd, "desmarcar não pede confirmação");
+    }
+    if (await page.evaluate(() => !!window.ATLAS_UI)) { // camada ATLAS
     // trilho dos sliders acompanha o Demo (loop rAF sob demanda)
     const fill = () => page.evaluate(() => inputs.waist[0].style.getPropertyValue("--b") + "|" + inputs.waist[1].textContent);
     await page.evaluate(() => { document.getElementById("t-ctrl").click(); if (document.getElementById("p-ctrl").hidden) document.getElementById("t-ctrl").click(); $("demo").click(); });
@@ -226,6 +245,7 @@ try {
     for (let t = 0; t < 60 && f2 === f1; t++) { await new Promise(r => setTimeout(r, 250)); f2 = await fill(); }
     await page.evaluate(() => { $("demo").click(); $("rst").click(); });
     ok(f1 !== f2, "trilho e valor do slider acompanham o Demo");
+    }
     // ETAPA 4: seleção / destaque (não destrutivo)
     if (await page.$("#hotspots")) {
       await page.waitForFunction(() => sceneRef.effectLayers && sceneRef.effectLayers.some(l => l.name === "atlas-hl"), { timeout: 30000 }).catch(() => {});
@@ -409,6 +429,49 @@ try {
       ok(r9.before !== r9.off && r9.after === r9.before && r9.frozenMat, "troca de tema funciona com materiais congelados");
       ok(navy(px.atlas) && light(px.lab) && navy(px.back), "pixel renderizado do piso: tema ATLAS " + px.atlas + " · laboratório " + px.lab + " · ATLAS de novo " + px.back);
     }
+    // ---------- Versão main: confirmação nativa, E-STOP e vistas ----------
+    if (await page.$("#estop")) {
+      const W = ms => new Promise(r => setTimeout(r, ms));
+      await page.evaluate(() => {
+        window.__realMqtt = window.mqtt; window.__pub = []; const lst = {};
+        window.mqtt = { connect: () => ({ connected: true, on: (e, f) => (lst[e] ||= []).push(f), subscribe() {}, publish(t, p) { window.__pub.push([t, String(p)]); }, end() {} }) };
+        $("url").value = "wss://t.invalid:8884/mqtt"; $("con").click(); (lst.connect || []).forEach(f => f());
+        const t = document.getElementById("t-cfg"); if (t && document.getElementById("p-cfg").hidden) t.click();
+        const dt = $("snd").closest("details"); if (dt) dt.open = true; // layout original: MQTT dentro de <details>
+      });
+      await W(300);
+      dialogAction = "dismiss"; const nd = dialogs.length; await page.click("#snd"); await W(200);
+      let st = await page.evaluate(() => $("snd").checked);
+      ok(!st && dialogs.length > nd, "confirmação nativa antes do envio: Cancelar mantém desligado");
+      dialogAction = "accept"; await page.click("#snd"); await W(200);
+      st = await page.evaluate(() => $("snd").checked); ok(st, "confirmação nativa: Confirmar habilita o envio");
+      await page.evaluate(() => { window.__pub.length = 0; });
+      await page.keyboard.press("e"); await page.waitForFunction(() => estop === true, { timeout: 5000 }).catch(() => {});
+      // conta /cmd só DEPOIS do E-STOP ativo (antes disso o loop de 20 Hz publica legitimamente)
+      await page.evaluate(() => { window.__afterStop = window.__pub.length; }); await W(700);
+      await page.waitForFunction(() => /E-STOP|PARADA/i.test((document.querySelector("#chip-mode .v") || document.getElementById("estop")).textContent), { timeout: 5000 }).catch(() => {});
+      const e1 = await page.evaluate(() => ({ estop, snd: $("snd").checked, banner: getComputedStyle(document.getElementById("estopBanner")).display,
+        chip: (document.querySelector("#chip-mode .v") || {}).textContent || "", cmd: window.__pub.slice(window.__afterStop).filter(p => /\/cmd$/.test(p[0])).length,
+        stop: (window.__pub.find(p => /\/estop$/.test(p[0])) || [])[1] }));
+      ok(e1.estop && !e1.snd && e1.banner !== "none" && e1.cmd === 0 && e1.stop === "1", "tecla E: E-STOP ativo, envio desligado, 0 comandos, /estop=1, banner visível " + JSON.stringify(e1));
+      ok(!(await page.$("#chip-mode")) || /E-STOP|PARADA/i.test(e1.chip), "header indica E-STOP (" + e1.chip + ")");
+      await page.click("#snd"); await W(200);
+      ok(!(await page.evaluate(() => $("snd").checked)), "durante o E-STOP o envio não pode ser religado");
+      const rearm = (await page.$("#estop-rearm")) ? "#estop-rearm" : "#estop";
+      await page.evaluate(sel => document.querySelector(sel).click(), rearm); await W(300);
+      const e2 = await page.evaluate(() => ({ estop, stop: window.__pub.filter(p => /\/estop$/.test(p[0])).map(p => p[1]) }));
+      ok(!e2.estop && e2.stop.join(",") === "1,0", "Rearmar (" + rearm + ") libera e publica /estop=0");
+      await page.evaluate(() => { window.mqtt = window.__realMqtt; mq = null; $("rst").click(); });
+    }
+    if (await page.$("[data-v]")) {
+      await page.evaluate(() => { const t = document.getElementById("t-twin"); if (t && document.getElementById("p-twin").hidden) t.click(); });
+      const b0 = await page.evaluate(() => sceneRef.activeCamera.beta);
+      await page.evaluate(() => document.querySelector('[data-v="top"]').click());
+      const okTop = await page.waitForFunction(() => sceneRef.activeCamera.beta < 0.3, { timeout: 15000 }).then(() => true).catch(() => false);
+      await page.evaluate(() => document.querySelector('[data-v="front"]').click());
+      const okFront = await page.waitForFunction(b => Math.abs(sceneRef.activeCamera.beta - b) < 0.05, { timeout: 15000 }, b0).then(() => true).catch(() => false);
+      ok(okTop && okFront, "vistas: Topo e Frontal animam a câmera (mesma lógica initViews)");
+    }
     return out;
   })();
 } finally {
@@ -444,7 +507,8 @@ const labelIssues = [];
 for (const [name, pose] of Object.entries(result.poses)) {
   if (!("label" in pose)) continue;
   const k = name.replace(/_(min|mid|max)$/, "");
-  const want = Math.round(pose.S[k]) + "°";
+  // sem a camada ATLAS: rótulo original (igual ao baseline); com ATLAS: acompanha o slider (autorizado)
+  const want = env && env.atlas ? Math.round(pose.S[k]) + "°" : golden.poses[name] && golden.poses[name].label;
   if (pose.label !== want) labelIssues.push(`poses.${name}.label: esperado ${want}, obtido ${pose.label}`);
   delete pose.label; if (golden.poses[name]) delete golden.poses[name].label;
 }

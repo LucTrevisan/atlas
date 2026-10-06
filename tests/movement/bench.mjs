@@ -9,7 +9,7 @@ const b = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || "C
 for (const ROOT of roots) {
   const srv = http.createServer((q, r) => { const p = path.join(ROOT, new URL(q.url, "http://x").pathname); if (!fs.existsSync(p)) { r.writeHead(404); return r.end(); } r.writeHead(200, { "content-type": p.endsWith(".html") ? "text/html" : "application/octet-stream" }); fs.createReadStream(p).pipe(r); });
   await new Promise(r => srv.listen(0, r));
-  const pg = await b.newPage(); await pg.setViewport({ width: 1280, height: 800 });
+  const pg = await b.newPage(); pg.on("dialog", d => d.accept()); await pg.setViewport({ width: 1280, height: 800 }); // confirm() nativo (versão main)
   await pg.goto(`http://127.0.0.1:${srv.address().port}/index.html`, { timeout: 120000 });
   await pg.waitForFunction(() => typeof pose !== "undefined" && pose && /Pronto|VR indispon/.test(document.getElementById("st").textContent), { timeout: 120000 });
   await new Promise(r => setTimeout(r, 2000));

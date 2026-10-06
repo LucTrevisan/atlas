@@ -28,6 +28,7 @@ let fail = 0; const ok = (c, m) => { if (!c) fail++; console.log((c ? "✓ " : "
 
 async function open(w, h, mobile) {
   const pg = await b.newPage(); pg.on("pageerror", e => report.errors.push(String(e.stack || e)));
+  pg.on("dialog", d => d.dismiss()); // confirm() nativo (versão main)
   await pg.setViewport({ width: w, height: h, isMobile: !!mobile, hasTouch: !!mobile });
   await pg.goto(URL_, { timeout: 120000 });
   await pg.waitForFunction(() => typeof pose !== "undefined" && pose && /Pronto|VR indispon/.test(document.getElementById("st").textContent), { timeout: 120000 });
@@ -49,9 +50,20 @@ try {
     ok(v.length === 0, `${label}: ${v.length ? v.map(x => `${x.id} (${x.impact}, ${x.n}×) ${x.targets.join(" | ")}`).join("; ") : "sem violações"}`);
   };
   for (const t of ["twin", "ctrl", "tele", "xr", "cfg"]) { await showTab(pg, t); await wait(400); await audit("aba " + t); }
-  await pg.evaluate(() => { mq = { connected: true, publish() {}, end() {} }; document.getElementById("snd").click(); });
-  await wait(300); await audit("diálogo de controle real");
-  await pg.evaluate(() => { document.getElementById("dlg-real-no").click(); mq = null; });
+  if (await pg.$("#dlg-real")) {
+    await pg.evaluate(() => { mq = { connected: true, publish() {}, end() {} }; document.getElementById("snd").click(); });
+    await wait(300); await audit("diálogo de controle real");
+    await pg.evaluate(() => { document.getElementById("dlg-real-no").click(); mq = null; });
+  }
+  if (await pg.$("#estop")) { // versão main: E-STOP, ajuda e modo apresentação
+    await pg.evaluate(() => document.getElementById("estop").click()); await wait(400); await audit("E-STOP ativo (banner)");
+    await pg.screenshot({ path: path.join(OUT, "estop.png") });
+    await pg.evaluate(() => document.getElementById("estop").click());
+    await pg.evaluate(() => document.getElementById("helpb").click()); await wait(300); await audit("ajuda aberta");
+    await pg.evaluate(() => document.getElementById("helpx").click());
+    await pg.evaluate(() => document.getElementById("presb").click()); await wait(500); await audit("modo apresentação");
+    await pg.evaluate(() => document.getElementById("presb").click());
+  }
 
   // ---------- 2. Teclado ----------
   console.log("\nTECLADO");
@@ -63,7 +75,7 @@ try {
   await pg.keyboard.press("Home"); a = await pg.evaluate(() => document.activeElement.id); ok(a === "t-twin", "Home vai para a primeira aba");
   await showTab(pg, "ctrl"); await pg.focus("#t-ctrl"); await pg.keyboard.press("Tab");
   a = await pg.evaluate(() => [document.activeElement.id, document.activeElement.closest("#panel") ? "panel" : ""]);
-  ok(a[1] === "panel" || /chip|panel-close/.test(a[0]) || a[0] === "", "Tab sai da lista de abas para o conteúdo (" + a[0] + ")");
+  ok(a[1] === "panel" || /chip|panel-close|presb|helpb|estop/.test(a[0]) || a[0] === "", "Tab sai da lista de abas para o próximo controle (" + a[0] + ")");
   await pg.focus("#rst"); await pg.keyboard.press("Escape");
   a = await pg.evaluate(() => [document.getElementById("panel").hidden, document.activeElement.id]);
   ok(a[0] === true && a[1] === "t-ctrl", "Esc recolhe o painel e devolve o foco à aba");
