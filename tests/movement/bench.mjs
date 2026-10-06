@@ -14,11 +14,12 @@ for (const ROOT of roots) {
   await pg.waitForFunction(() => typeof pose !== "undefined" && pose && /Pronto|VR indispon/.test(document.getElementById("st").textContent), { timeout: 120000 });
   await new Promise(r => setTimeout(r, 2000));
   const n = await pg.evaluate(async () => {
-    let c = 0; mq = { connected: true, publish() { c++; }, end() {}, on() {} };
+    let c = 0, f = 0; mq = { connected: true, publish() { c++; }, end() {}, on() {} };
+    const o = sceneRef.onAfterRenderObservable.add(() => f++);
     $("snd").checked = true; $("snd").dispatchEvent(new Event("change"));
-    await new Promise(r => setTimeout(r, 10000)); $("snd").checked = false; mq = null; return c;
+    await new Promise(r => setTimeout(r, 10000)); sceneRef.onAfterRenderObservable.remove(o); $("snd").checked = false; mq = null; return [c, f];
   });
-  console.log(path.basename(ROOT), (n / 10).toFixed(1), "pub/s");
+  console.log(path.basename(ROOT), (n[0] / 10).toFixed(1), "pub/s ·", (n[1] / 10).toFixed(1), "fps");
   await pg.close(); srv.close();
 }
 await b.close();

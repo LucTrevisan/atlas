@@ -221,8 +221,9 @@ try {
     // trilho dos sliders acompanha o Demo (loop rAF sob demanda)
     const fill = () => page.evaluate(() => inputs.waist[0].style.getPropertyValue("--b") + "|" + inputs.waist[1].textContent);
     await page.evaluate(() => { document.getElementById("t-ctrl").click(); if (document.getElementById("p-ctrl").hidden) document.getElementById("t-ctrl").click(); $("demo").click(); });
-    await new Promise(r => setTimeout(r, 800)); const f1 = await fill();
-    await new Promise(r => setTimeout(r, 800)); const f2 = await fill();
+    // aguarda mudança (robusto a frames lentos no Chrome headless com GPU por software)
+    await new Promise(r => setTimeout(r, 800)); const f1 = await fill(); let f2 = f1;
+    for (let t = 0; t < 60 && f2 === f1; t++) { await new Promise(r => setTimeout(r, 250)); f2 = await fill(); }
     await page.evaluate(() => { $("demo").click(); $("rst").click(); });
     ok(f1 !== f2, "trilho e valor do slider acompanham o Demo");
     // ETAPA 4: seleção / destaque (não destrutivo)
