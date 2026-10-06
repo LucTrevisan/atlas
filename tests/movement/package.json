@@ -1,0 +1,14 @@
+{
+  "name": "atlas-movement-regression",
+  "private": true,
+  "type": "module",
+  "description": "Teste anti-regressão da cinemática do ATLAS (golden snapshot). Não faz parte do app.",
+  "scripts": {
+    "record": "node run.mjs --record",
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "axe-core": "^4.14.0",
+    "puppeteer-core": "^23.11.1"
+  }
+}
