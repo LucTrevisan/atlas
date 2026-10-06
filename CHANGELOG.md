@@ -196,3 +196,32 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.
+
+## ETAPA 8 — HAND TRACKING UX (2026-10-06) — `v8-atlas-hands`
+
+### Alterado
+- **Estados de hand tracking** (somente leitura; mesmas consultas do código original — `getHandByHandedness`, `getJointMesh` — e a variável `follow` que `handsStep()` já calcula):
+  - `HAND TRACKING INDISPONÍVEL` (feature não habilitada) → instrução para ativar no Quest;
+  - `○ PROCURANDO MÃOS` → "Mostre as mãos à frente do headset.";
+  - `● MÃOS DETECTADAS` + presença ESQ/DIR + **medidor de aproximação da pinça** (exibição; o limiar real continua `CFG.pinchOn`) → "Use a mão esquerda para habilitar o controle…";
+  - `● CONTROLE ARMADO` (pinça esquerda detectada, sem mão direita) → "Controle habilitado. Use a mão direita para movimentar o braço.";
+  - `● MOVIMENTO ATIVO` (pinça + mão direita; borda do painel verde) → "Solte a pinça esquerda para parar.".
+- **Instruções que somem após compreensão**: depois de 3 s acumulados em movimento ativo, só o estado é mostrado (lembrado em `localStorage`, `atlas_hands_learned`).
+- Painel do headset: coluna "MÃOS" com estado, subestado/presença, medidor e instrução com quebra de linha.
+- Painel WebXR (desktop): legenda dos estados e linha "Mãos (em VR)".
+- `window.ATLAS_UI.hands()` (somente leitura) para testes/diagnóstico.
+
+### Preservado
+- **Movement logic: PRESERVED.** Mão utilizada, gesto, mapping, transformação, articulações, cálculo, thresholds (`pinchOn`, `gripOpenDist`, `humanReach`, `smooth`) e direção intactos. Script principal idêntico; a camada nova não escreve em `S`, `follow`, `handFeat`, `inXR`, `xrCamRef` nem `CFG`.
+
+### Testado
+- `npm test`: APROVADO (12/12; inclui os casos de hand tracking do baseline) + UX com sessão XR simulada e mãos sintéticas: procurando → detectadas (medidor + instrução) → armado → movimento ativo (braço movido pelo `handsStep` original) → instruções somem após 3 s → soltar a pinça para o movimento → painel desativado ao sair de VR.
+- Benchmark 10 s: v5 19,8 / 19,8 pub/s × v8 19,8 / 20,0 pub/s.
+- Screenshots do painel do headset nos estados "mãos detectadas" e "movimento ativo".
+- **Não testável aqui:** rastreamento real no Meta Quest.
+
+### Regressões
+- Nenhuma.
+
+### Arquivos modificados
+- `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.

@@ -388,6 +388,7 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
             <dt>Sessão imersiva (VR)</dt><dd id="xr-sess" data-s="off">verificando</dd>
             <dt>Hand tracking</dt><dd id="xr-hands" data-s="off">—</dd>
             <dt>Robô real em VR</dt><dd id="xr-snd" data-s="off">—</dd>
+            <dt>Mãos (em VR)</dt><dd id="xr-hstate" data-s="off">— fora de VR</dd>
           </dl>
           <h3>Como usar (hand tracking)</h3>
           <ol class="steps">
@@ -397,6 +398,14 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
             <li><b>Mão direita:</b> posiciona o pulso do robô; a abertura entre polegar e indicador controla a garra.</li>
           </ol>
           <p class="hint">No Quest: Configurações → Movimento e controladores → Rastreamento de mãos ligado.</p>
+          <h3>Feedback das mãos (no headset)</h3>
+          <ol class="steps">
+            <li><b>○ Procurando mãos</b> — mostre as mãos à frente do headset.</li>
+            <li><b>● Mãos detectadas</b> — faça a pinça com a mão esquerda.</li>
+            <li><b>● Controle armado</b> — pinça esquerda detectada; use a mão direita.</li>
+            <li><b>● Movimento ativo</b> — o braço segue a mão direita; solte a pinça para parar.</li>
+          </ol>
+          <p class="hint">As instruções somem depois de alguns segundos de uso com sucesso.</p>
           <h3>Painel no headset</h3>
           <p class="hint" style="margin-top:0">Em VR, um painel compacto aparece ao lado do braço (estado, articulações, MQTT, ESP32).</p>
           <label class="check"><input type="checkbox" id="xr-preview"> Pré-visualizar o painel do headset nesta tela</label>
@@ -883,6 +892,9 @@ function tick(dt){
       set("xr-sess",xrInfo.vr?"ok":xrInfo.vr===null?"off":"warn",xrInfo.vr?"suportada":xrInfo.vr===null?"verificando":"não suportada");
       const hf=typeof handFeat!=="undefined"&&!!handFeat;
       set("xr-hands",hf?"ok":"off",hf?"recurso habilitado":xrInfo.vr?"não habilitado":"—");
+      const hs=HSTATE[hands.state];
+      set("xr-hstate",typeof inXR!=="undefined"&&inXR?(hs.s==="ok"?"ok":hs.s==="warn"?"warn":"off"):"off",
+        typeof inXR!=="undefined"&&inXR?hs.t.replace(/^[●○]\s*/,"").toLowerCase():"— fora de VR");
       set("xr-snd",snd?"warn":"off",snd?(con?"ligado — o robô físico acompanha":"armado — MQTT offline"):"desligado — só o Digital Twin se move");
     }
   }
@@ -1091,7 +1103,8 @@ function tick(dt){
     const g=xrp.tex.getContext(), W=xrp.W, H=xrp.H, ch=34;
     g.clearRect(0,0,W,H);
     g.beginPath();g.moveTo(ch,0);g.lineTo(W,0);g.lineTo(W,H-ch);g.lineTo(W-ch,H);g.lineTo(0,H);g.lineTo(0,ch);g.closePath();
-    g.fillStyle=TOK.panel;g.fill();g.lineWidth=4;g.strokeStyle=TOK.cyan;g.stroke();
+    g.fillStyle=TOK.panel;g.fill();g.lineWidth=content.hands.state==="active"?8:4;
+    g.strokeStyle=content.hands.state==="active"?TOK.ok:TOK.cyan;g.stroke();
     const txt=(t,x,y,font,col,align)=>{g.font=font;g.fillStyle=col;g.textAlign=align||"left";g.fillText(t,x,y)};
     const dot=(x,y,col,filled)=>{g.beginPath();g.arc(x,y,9,0,7);if(filled){g.fillStyle=col;g.fill()}else{g.lineWidth=3;g.strokeStyle=col;g.stroke()}};
     // cabeçalho
@@ -1099,8 +1112,28 @@ function tick(dt){
     txt("DIGITAL TWIN",44,118,"700 30px Segoe UI, sans-serif",TOK.cyan2);
     txt(content.mode.t.replace(/^[●◐○]\s*/,"").toUpperCase(),W-40,78,"800 30px Segoe UI, sans-serif",sCol(content.mode.s),"right");
     g.fillStyle=TOK.cyan;g.globalAlpha=.35;g.fillRect(40,140,W-80,2);g.globalAlpha=1;
-    // coluna esquerda: mãos (ETAPA 8 detalha)
-    content.left.forEach(([t,font,col],i)=>txt(t,40,200+i*50,font,col));
+    // coluna esquerda: mãos
+    const hc=content.hands, colW=460;
+    txt("MÃOS",40,196,"700 30px Segoe UI, sans-serif",TOK.text2);
+    let fs=36;g.font=`800 ${fs}px Segoe UI, sans-serif`;
+    while(g.measureText(hc.t).width>colW&&fs>28){fs-=2;g.font=`800 ${fs}px Segoe UI, sans-serif`}
+    txt(hc.t,40,248,g.font,sCol(hc.s));
+    if(hc.sub)txt(hc.sub,40,292,"600 30px Segoe UI, sans-serif",TOK.text2);
+    else if(hc.state!=="unavailable"){ // presença de cada mão
+      txt("ESQ",40,292,"700 30px Segoe UI, sans-serif",TOK.text2);dot(116,282,hc.L?TOK.ok:TOK.text2,hc.L);
+      txt("DIR",150,292,"700 30px Segoe UI, sans-serif",TOK.text2);dot(222,282,hc.R?TOK.ok:TOK.text2,hc.R);
+    }
+    if(hc.bar!=null){ // aproximação da pinça esquerda (exibição; o limiar real é CFG.pinchOn)
+      g.fillStyle="rgba(145,175,197,.25)";g.fillRect(40,318,colW,14);
+      g.fillStyle=TOK.cyan;g.fillRect(40,318,colW*hc.bar,14);
+    }
+    if(hc.instr){ // instrução contextual com quebra de linha (máx. 4 linhas)
+      g.font="600 30px Segoe UI, sans-serif";g.fillStyle=TOK.text;g.textAlign="left";
+      const words=hc.instr.split(" "), lines=[];let ln="";
+      words.forEach(w=>{const t=ln?ln+" "+w:w;if(g.measureText(t).width>colW&&ln){lines.push(ln);ln=w}else ln=t});
+      if(ln)lines.push(ln);
+      lines.slice(0,4).forEach((l,i)=>g.fillText(l,40,384+i*38));
+    }
     // coluna direita: articulações
     content.joints.forEach(([tag,name,val,sel],i)=>{
       const y=200+i*58;
@@ -1119,13 +1152,50 @@ function tick(dt){
     });
     xrp.tex.update();
   }
+  // ----- ETAPA 8: feedback de hand tracking — SOMENTE LEITURA -----
+  // Usa as mesmas consultas do código original (getHandByHandedness / getJointMesh) e a
+  // variável `follow` que handsStep() já calcula. Mapping, gesto, threshold e cálculo intactos.
+  const HSTATE={
+    unavailable:{s:"warn",t:"HAND TRACKING INDISPONÍVEL",i:"Ative o rastreamento de mãos no Quest: Configurações → Movimento e controladores."},
+    searching:  {s:"off", t:"○ PROCURANDO MÃOS",i:"Mostre as mãos à frente do headset."},
+    detected:   {s:"info",t:"● MÃOS DETECTADAS",i:"Use a mão esquerda para habilitar o controle: faça a pinça (polegar + indicador)."},
+    armed:      {s:"info",t:"● CONTROLE ARMADO",sub:"pinça esquerda detectada",i:"Controle habilitado. Use a mão direita para movimentar o braço."},
+    active:     {s:"ok",  t:"● MOVIMENTO ATIVO",sub:"pinça esquerda + mão direita",i:"Solte a pinça esquerda para parar."}};
+  const hands={state:"searching",left:false,right:false,pinch:null,activeMs:0,learned:false,lastT:0};
+  try{hands.learned=localStorage.getItem("atlas_hands_learned")==="1"}catch(e){}
+  function readHands(){
+    const hf=typeof handFeat!=="undefined"?handFeat:null;
+    if(!hf){hands.state="unavailable";hands.left=hands.right=false;hands.pinch=null;return hands}
+    const HJ=BABYLON.WebXRHandJoint;
+    let L=null,R=null;try{L=hf.getHandByHandedness("left");R=hf.getHandByHandedness("right")}catch(e){}
+    const jp=(h,j)=>{try{const m=h&&h.getJointMesh(j);return m?m.getAbsolutePosition():null}catch(e){return null}};
+    const lt=jp(L,HJ.THUMB_TIP), li=jp(L,HJ.INDEX_FINGER_TIP);
+    hands.left=!!(lt&&li);
+    hands.right=!!(jp(R,HJ.WRIST)&&jp(R,HJ.INDEX_FINGER_TIP)&&jp(R,HJ.THUMB_TIP));
+    hands.pinch=hands.left?BABYLON.Vector3.Distance(lt,li):null;
+    const f=typeof follow!=="undefined"&&!!follow;
+    hands.state=!L&&!R?"searching":f&&hands.right?"active":f?"armed":"detected";
+    // "compreensão": após 3 s acumulados em movimento ativo, as instruções somem (lembrado no navegador)
+    const now=performance.now(), dt=hands.lastT?Math.min(now-hands.lastT,500):0; hands.lastT=now;
+    if(hands.state==="active"&&!hands.learned){
+      hands.activeMs+=dt;
+      if(hands.activeMs>=3000){hands.learned=true;try{localStorage.setItem("atlas_hands_learned","1")}catch(e){}}
+    }
+    return hands;
+  }
+  function handsContent(){
+    const h=readHands(), st=HSTATE[h.state];
+    const pinchOn=typeof CFG!=="undefined"?CFG.pinchOn:.03;
+    const bar=h.state==="detected"&&h.pinch!=null?Math.round(Math.min(Math.max((.08-h.pinch)/(.08-pinchOn),0),1)*10)/10:null;
+    const instr=(h.learned&&h.state!=="unavailable"&&h.state!=="searching")?null:st.i;
+    return {state:h.state,s:st.s,t:st.t,sub:st.sub||null,L:h.left,R:h.right,bar,instr};
+  }
+
   function xrPanelContent(){
     const J5=JOINTS.map(([k,j,l])=>[j||"",l.toUpperCase(),fmt(S[k]),selected===k]);
-    const hf=typeof handFeat!=="undefined"&&!!handFeat;
     return {
       mode:stat["chip-mode"]||{s:"info",t:"Simulação"},
-      left:[["HAND TRACKING","700 30px Segoe UI, sans-serif",TOK.text2],
-            [hf?"recurso habilitado":"indisponível","600 34px Segoe UI, sans-serif",hf?TOK.ok:TOK.warn]],
+      hands:handsContent(),
       joints:J5,
       foot:[["MQTT",(stat["chip-mqtt"]||{}).s||"off",(stat["chip-mqtt"]||{}).t||"offline"],
             ["ESP32",(stat["chip-esp"]||{}).s||"off",(stat["chip-esp"]||{}).t||"sem telemetria"]],
@@ -1143,7 +1213,9 @@ function tick(dt){
   },100);
 
   // Leitura (somente) para testes e diagnóstico
-  window.ATLAS_UI=Object.freeze({xrPanel:()=>({exists:!!xrp.mesh,enabled:!!(xrp.mesh&&xrp.mesh.isEnabled()),content:xrp.sig?JSON.parse(xrp.sig):null})});
+  window.ATLAS_UI=Object.freeze({
+    xrPanel:()=>({exists:!!xrp.mesh,enabled:!!(xrp.mesh&&xrp.mesh.isEnabled()),content:xrp.sig?JSON.parse(xrp.sig):null}),
+    hands:()=>({state:hands.state,left:hands.left,right:hands.right,pinch:hands.pinch,learned:hands.learned})});
 
   let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
   if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";

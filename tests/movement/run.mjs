@@ -317,6 +317,36 @@ try {
       ok(r7.pickable === false && !r7.parent, "painel do headset não é pickable e não tem parent no rig");
       ok(r7.after === false, "painel some ao desligar a pré-visualização");
     }
+    // ETAPA 8: feedback de hand tracking (sessão XR simulada; mapping executado pelo handsStep ORIGINAL)
+    if (await page.evaluate(() => !!(window.ATLAS_UI && ATLAS_UI.hands))) {
+      const r8 = await page.evaluate(async () => {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const V = (x, y, z) => new BABYLON.Vector3(x, y, z), HJ = BABYLON.WebXRHandJoint;
+        const mk = pts => ({ getJointMesh: j => (pts[j] ? { getAbsolutePosition: () => pts[j].clone() } : null) });
+        const right = { [HJ.WRIST]: V(0.25, 1.3, -0.35), [HJ.INDEX_FINGER_TIP]: V(0.27, 1.33, -0.52), [HJ.THUMB_TIP]: V(0.3, 1.3, -0.48) };
+        const left = d => ({ [HJ.THUMB_TIP]: V(-0.2, 1.3, -0.3), [HJ.INDEX_FINGER_TIP]: V(-0.2 + d, 1.3, -0.3) });
+        const saved = { hf: handFeat, cam: xrCamRef }; let Lp = null, Rp = null;
+        handFeat = { getHandByHandedness: h => (h === "left" ? (Lp && mk(Lp)) : (Rp && mk(Rp))) };
+        xrCamRef = { position: V(0, 1.6, 0), getDirection: () => V(1, 0, 0) };
+        $("rst").click(); inXR = true; await wait(400);
+        const st = () => ATLAS_UI.hands().state, pc = () => ATLAS_UI.xrPanel().content.hands, res = {};
+        res.searching = st(); res.panelOn = ATLAS_UI.xrPanel().enabled;
+        Lp = left(0.06); Rp = right; await wait(300); res.detected = st(); res.bar = pc().bar; res.instrDetected = pc().instr;
+        Lp = left(0.02); Rp = null; await wait(300); res.armed = st(); res.armedSub = pc().sub;
+        Rp = right; const s0 = JSON.stringify(S); await wait(600); res.active = st(); res.moved = JSON.stringify(S) !== s0;
+        await wait(3200); res.learned = ATLAS_UI.hands().learned; res.instrAfter = pc().instr;
+        Lp = left(0.05); await wait(300); res.release = st(); const s1 = JSON.stringify(S); await wait(300); res.stopped = JSON.stringify(S) === s1;
+        inXR = false; handFeat = saved.hf; xrCamRef = saved.cam; await wait(300); res.panelOff = !ATLAS_UI.xrPanel().enabled;
+        $("rst").click(); return res;
+      });
+      ok(r8.searching === "searching" && r8.panelOn, "em VR sem mãos: ○ PROCURANDO MÃOS e painel do headset ativo");
+      ok(r8.detected === "detected" && r8.bar > 0 && r8.bar < 1 && /mão esquerda/.test(r8.instrDetected), "mãos sem pinça: MÃOS DETECTADAS + medidor de pinça + instrução da mão esquerda");
+      ok(r8.armed === "armed" && /pinça esquerda/.test(r8.armedSub), "pinça esquerda sem mão direita: CONTROLE ARMADO");
+      ok(r8.active === "active" && r8.moved, "pinça + mão direita: MOVIMENTO ATIVO (braço movido pelo handsStep original)");
+      ok(r8.learned && r8.instrAfter === null, "após 3 s de uso as instruções somem");
+      ok(r8.release === "detected" && r8.stopped, "soltar a pinça: movimento para (comportamento original)");
+      ok(r8.panelOff, "ao sair de VR o painel do headset é desativado");
+    }
     return out;
   })();
 } finally {
