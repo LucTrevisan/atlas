@@ -272,3 +272,31 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.
+
+## ETAPA 10 — QA FINAL (2026-10-06) — `v10-atlas-final`
+
+### Corrigido nesta etapa
+- **Defeito da ETAPA 9 encontrado na inspeção visual**: os materiais do ambiente eram congelados na mesma chamada em que as cores mudavam; material congelado não reenvia uniforms, então o tema ATLAS do ambiente não aparecia (piso/pedestal ficavam com as cores do laboratório). Agora o congelamento ocorre 2 frames depois. Novo teste lê o **pixel renderizado** do piso (tema ATLAS 17,50,96 · laboratório 187,200,205); validado: reprova a v9 commitada, aprova a v10.
+- Acessibilidade: `#demo` sem `aria-label` divergente do texto visível (WCAG 2.5.3 *label in name*).
+- Contraste: botões primários com gradiente `#006CFF → #0052CC` e texto branco (4,58:1 no pior ponto; antes 4,35:1); botão crítico com texto `#020B18` sobre `#FF334F` (5,49:1; branco seria 3,6:1); hover sem clarear o fundo.
+- Celular: header mais baixo (chip VR fica só na aba WebXR) e bottom sheet ≤ 42vh.
+
+### QA executado
+- **Movimento** (`npm test`): APROVADO — 12/12 grupos idênticos ao baseline + 36 verificações de UX (48 itens ✓).
+- **Acessibilidade** (`qa.mjs`, axe-core 4.14, WCAG 2.1 A/AA): 0 violações nas 5 abas e no diálogo de controle real.
+- **Teclado**: setas/Home/End nas abas, Tab para o conteúdo, Esc recolhe o painel e devolve o foco, Enter reabre, slider pelo teclado usa o mesmo caminho (`oninput` original).
+- **Responsividade**: 1440×860, 1024×768, 768×1024, 390×844, 360×640 — sem rolagem horizontal; Digital Twin livre ≈ 83% (desktop) / 73% (tablet) / ≥ 50% com o bottom sheet aberto (celular; inicia recolhido = 100%).
+- **Contraste dos tokens** sobre `#071C32`: todos ≥ AA (texto 16,35:1; secundário 7,49:1; ciano 10,13:1; crítico 4,78:1).
+- **Erros de JavaScript**: nenhum.
+- **Desempenho**: taxa de publish MQTT igual ao original (bench 10 s).
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal (`const B=BABYLON` … `})();`) e CDNs byte a byte idênticos ao commit `117bc18`.
+
+### Pendências conhecidas
+- ETAPA 6 (Demonstração guiada) não executada — aguarda decisão "PARAR × PAUSAR" e narrativa por tempo.
+- Sem decisão: E-STOP (inexistente no código), 4 vistas de câmera, Home/presets.
+- Validação manual no Meta Quest e com broker/ESP32 reais (checklist no README).
+
+### Arquivos modificados
+- `index.html`, `README.md`, `CHANGELOG.md`, `.gitignore` (`qa-out/`), `tests/movement/{run.mjs,qa.mjs,package.json,package-lock.json}`.

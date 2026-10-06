@@ -33,3 +33,50 @@ Sempre use usuário/senha e ACL para os tópicos `braco/#`.
 
 ## Payload
 `braco/cmd` e `braco/estado`: `{"waist":12.5,"shoulder":-8,"elbow":40,"pitch":-5,"grip":18}` (graus).
+
+---
+
+# ATLAS — Robotic Digital Twin (interface v10)
+
+Interface refatorada em 10 etapas **sem alterar a lógica de movimentação** (o script principal do `index.html` é idêntico ao original — ver [MOVEMENT_BASELINE.md](MOVEMENT_BASELINE.md) e [CHANGELOG.md](CHANGELOG.md)).
+
+## Navegação
+| Aba | Conteúdo |
+|---|---|
+| **Digital Twin** | leitura J1–J4/Garra, destaque por articulação, marcadores no modelo, aparência (ambiente Digital Twin / laboratório; cores do robô físico / modelo) |
+| **Controle** | sliders existentes (limites reais, garra 0 = fechada → 30 = aberta), Demo, Zerar; cartão da articulação selecionada |
+| **Telemetria** | MQTT, ESP32 (online pelo `<prefixo>/estado`), comando × robô real por junta, último pacote, taxa |
+| **WebXR** | diagnóstico (HTTPS, WebXR, sessão VR, hand tracking), Entrar em VR, legenda dos estados das mãos, pré-visualização do painel do headset |
+| **Configurações** | broker MQTT, modo de operação (enviar comandos / espelhar), tópicos |
+
+- **Controle real**: marcar "Enviar comandos ao robô real" pede confirmação; o header mostra `● CONTROLE REAL HABILITADO` enquanto ativo.
+- **Clique numa peça** do braço (ou no marcador J1…GARRA) seleciona a articulação e foca o slider; mover um slider destaca a peça.
+- **Em VR**: painel compacto ao lado do braço com modo, mãos (procurando → detectadas → controle armado → movimento ativo), articulações, MQTT e ESP32.
+- Não existem (não foram inventados): E-STOP, posição Home distinta de Zero, presets, vistas fixas de câmera.
+
+## Testes automatizados (`tests/movement`)
+```bash
+cd tests/movement
+npm install
+npm test          # anti-regressão do movimento (golden de 9 626 valores) + verificações de UX — exit 1 se algo mudar
+node qa.mjs       # acessibilidade (axe-core WCAG 2.1 AA), teclado, responsividade, contraste → qa-out/
+node bench.mjs    # taxa efetiva de publish MQTT e FPS (10 s)
+```
+Requer Google Chrome instalado (ou `CHROME_PATH`). O teste reprova com qualquer erro de JavaScript na página.
+
+## Validação manual obrigatória (não automatizável)
+```text
+META QUEST
+[ ] Entrar em VR pelo botão do painel WebXR (ou 🥽)
+[ ] Painel do headset aparece ao lado do braço, legível
+[ ] Sem mãos → "PROCURANDO MÃOS"; mãos → "MÃOS DETECTADAS"
+[ ] Pinça esquerda → "CONTROLE ARMADO"; + mão direita → "MOVIMENTO ATIVO" e o braço segue a mão
+[ ] Soltar a pinça para o movimento; abertura polegar–indicador controla a garra
+[ ] Instruções somem após alguns segundos de uso
+HARDWARE (broker + ESP32)
+[ ] Conectar → "MQTT ● conectado"; ESP32 publicando → "ESP32 ● online"
+[ ] Telemetria: coluna "Robô real" acompanha o comando (rampa 120 °/s)
+[ ] Enviar comandos: confirmação → robô físico segue sliders/Demo/Zerar
+[ ] Desmarcar "Enviar comandos": robô congela após 800 ms (watchdog do firmware)
+[ ] Espelhar estado: o Digital Twin segue o robô físico
+```

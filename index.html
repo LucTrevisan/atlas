@@ -21,6 +21,7 @@
   --atlas-warning:#FFB020;
   --atlas-danger:#FF334F;
   --atlas-border:rgba(0,217,255,.35);
+  --atlas-blue-deep:#0052CC; /* base do gradiente dos botões: texto branco ≥ 4,6:1 (WCAG AA) */
   --atlas-border-soft:rgba(0,217,255,.16);
   --atlas-track:rgba(145,175,197,.22);
   --atlas-glow:0 0 14px rgba(0,140,255,.35);
@@ -234,7 +235,7 @@ dialog.atlas-dialog::backdrop{background:rgba(2,11,24,.72);-webkit-backdrop-filt
 .atlas-dialog p{margin:0 0 8px;font-size:12.5px;line-height:1.5}
 .atlas-dialog ul{margin:0 0 8px;padding-left:18px;font-size:12px;color:var(--atlas-text-secondary)}
 .atlas-dialog .b{padding:0 18px 16px;margin:6px 0 0}
-.b button.danger{background:linear-gradient(180deg,#ff4d66,var(--atlas-danger));border-color:var(--atlas-danger)}
+.b button.danger{background:var(--atlas-danger);border-color:var(--atlas-danger);color:var(--atlas-bg)} /* texto escuro: 5,5:1 (branco seria 3,6:1) */
 input[type=checkbox]{accent-color:var(--atlas-blue-bright);width:16px;height:16px;margin:0 8px 0 0;vertical-align:-3px}
 input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 8px;border-radius:2px;
   border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);color:var(--atlas-text);font:12px var(--atlas-font-mono)}
@@ -244,11 +245,11 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
 .check{display:flex;align-items:center;min-height:44px;margin:2px 0;color:var(--atlas-text);cursor:pointer}
 .b{display:flex;gap:6px;margin:10px 0}
 .b button{flex:1;min-height:44px;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
-  background:linear-gradient(180deg,var(--atlas-blue-bright),var(--atlas-blue));color:var(--atlas-text);
+  background:linear-gradient(180deg,var(--atlas-blue),var(--atlas-blue-deep));color:#fff;
   font:600 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
   clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
   transition:filter .15s,box-shadow .15s}
-.b button:hover{filter:brightness(1.15);box-shadow:var(--atlas-glow)}
+.b button:hover{box-shadow:var(--atlas-glow),inset 0 0 0 1px var(--atlas-cyan-soft)} /* sem clarear o fundo: mantém o contraste AA */
 .b button.o{background:transparent;color:var(--atlas-cyan-soft);border:1px solid var(--atlas-border)}
 .b button.o:hover{background:rgba(0,217,255,.08)}
 .b button:focus-visible,input:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
@@ -278,9 +279,10 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
   .brand-sub{display:none}
   .brand-mark{font-size:18px;border-right:0;padding-right:0}
   .chip{padding:3px 6px;font-size:9.5px;gap:4px}
+  #chip-xr{display:none} /* VR: detalhado na aba WebXR; header mais baixo no celular */
   .chips{gap:4px}
   .atlas-main{padding:0}
-  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:46vh;
+  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:42vh;
     clip-path:polygon(var(--atlas-chamfer) 0,calc(100% - var(--atlas-chamfer)) 0,100% var(--atlas-chamfer),100% 100%,0 100%,0 var(--atlas-chamfer))}
   .atlas-bar{padding:0 12px}
 }
@@ -351,7 +353,7 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
           </div>
           <h3>Controle do braço</h3>
           <div id="sl" role="group" aria-label="Articulações do braço"></div>
-          <div class="b"><button id="demo" aria-label="Demonstração automática (iniciar/parar)">▶ Demo</button><button id="rst" class="o" aria-label="Zerar todas as articulações (Reset)">⟲ Zerar</button></div>
+          <div class="b"><button id="demo" title="Demonstração automática (iniciar/parar)">▶ Demo</button><button id="rst" class="o" aria-label="Zerar todas as articulações (Reset)">⟲ Zerar</button></div>
           <p class="hint">Demo: movimento contínuo de demonstração — para ao mover um slider.</p>
         </section>
 
@@ -1109,7 +1111,7 @@ function tick(dt){
     const C=h=>BABYLON.Color3.FromHexString(h);
     const ROBOT={"#000ACA":"#D62718","#0039E6":"#D62718","#FFFFFF":"#D62718","#C5CDE6":"#F2B705","#8E9CCA":"#F2B705"}; // azul→vermelho, claro→amarelo (como o robô físico)
     const near=(c,r,g,b)=>c&&Math.abs(c.r-r)<.02&&Math.abs(c.g-g)<.02&&Math.abs(c.b-b)<.02;
-    let robotMats=[], envOps=[], grid=null, orig=null, ready=false;
+    let robotMats=[], envOps=[], grid=null, orig=null, ready=false, freezeGen=0;
     const keep=(obj,prop)=>{const v=obj[prop];return [obj,prop,v&&v.clone?v.clone():v]};
     function init(){
       if(ready)return; ready=true;
@@ -1152,7 +1154,10 @@ function tick(dt){
       restore(o=>o===sc||envSet.has(o)||robotSet.has(o));
       if(onScene){sc.clearColor=new BABYLON.Color4(.008,.043,.094,1);sc.fogColor=C("#061426");envOps.forEach(([m,fn])=>fn(m))}
       if(onRobot)robotMats.forEach(([m,to])=>{m.albedoColor=C(to).toLinearSpace();m.metallic=0;m.roughness=.6}); // PLA fosco (albedo PBR em espaço linear)
-      envSet.forEach(m=>m.freeze&&m.freeze()); // ETAPA 9: materiais do ambiente estáticos (só mudam aqui)
+      // ETAPA 9: congela os materiais do ambiente só DEPOIS de 2 frames com as cores novas
+      // (material congelado não reenvia uniforms; congelar antes deixaria a cor antiga na GPU)
+      const gen=++freezeGen;
+      sc.onAfterRenderObservable.addOnce(()=>sc.onAfterRenderObservable.addOnce(()=>{if(gen===freezeGen)envSet.forEach(m=>m.freeze&&m.freeze())}));
     }
     el("th-scene").onchange=()=>{try{localStorage.setItem("atlas_th_scene",el("th-scene").checked?"1":"0")}catch(e){}apply()};
     el("th-robot").onchange=()=>{try{localStorage.setItem("atlas_th_robot",el("th-robot").checked?"1":"0")}catch(e){}apply()};

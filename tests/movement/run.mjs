@@ -382,13 +382,32 @@ try {
         const fm = sceneRef.getMeshByName("floor").material, before = fm.diffuseColor.toHexString();
         const t = document.getElementById("th-scene"); t.checked = false; t.dispatchEvent(new Event("change")); await wait(100);
         const off = fm.diffuseColor.toHexString(); t.checked = true; t.dispatchEvent(new Event("change")); await wait(100);
+        for (let k = 0; k < 80 && !fm.isFrozen; k++) await wait(100); // congela 2 frames depois (frames lentos no headless)
         const h = document.getElementById("hs-toggle"); h.checked = true; h.dispatchEvent(new Event("change"));
         return { sel, picks, before, off, after: fm.diffuseColor.toHexString(), frozenMat: fm.isFrozen };
       });
       ok(movePicks === 0, "mover o mouse não dispara picking (" + movePicks + " picks)");
       ok(/ombro/i.test(r9.sel), "clique real na peça do ombro ainda seleciona J2 (pick no toque)");
       ok(pre.robotFrozen.length === 0 && pre.report.frozen > 20 && pre.report.skipped.length === 0, "só o ambiente é congelado (" + pre.report.frozen + " malhas); nenhum nó do robô");
+      // pixel REAL do piso na tela (captura do canvas dentro do frame renderizado)
+      const px = await page.evaluate(async () => {
+        const sc = sceneRef, eng = sc.getEngine(), cam = sc.activeCamera, cv = eng.getRenderingCanvas();
+        const sample = () => new Promise(res => { let k = 0; const o = sc.onAfterRenderObservable.add(() => { if (++k < 3) return; sc.onAfterRenderObservable.remove(o);
+          const w = eng.getRenderWidth(), h = eng.getRenderHeight(), floor = sc.getMeshByName("floor");
+          // ponto de tela que comprovadamente atinge o piso (pick com predicado; o piso não é "pickable")
+          let p = null; for (const [fx, fy] of [[.85, .8], [.9, .9], [.75, .85], [.6, .92], [.15, .9]]) if (sc.pick(w * fx, h * fy, m => m === floor).hit) { p = { x: w * fx, y: h * fy }; break; }
+          if (!p) return res(null);
+          // lê o framebuffer dentro do frame (antes de apresentar); origem do WebGL é embaixo
+          eng.readPixels(Math.round(p.x), h - Math.round(p.y), 1, 1).then(d => res([d[0], d[1], d[2]])); }); });
+        const t = document.getElementById("th-scene"), atlas = await sample();
+        t.checked = false; t.dispatchEvent(new Event("change")); const lab = await sample();
+        t.checked = true; t.dispatchEvent(new Event("change")); const back = await sample();
+        return { atlas, lab, back };
+      });
+      const avg = c => (c[0] + c[1] + c[2]) / 3;
+      const navy = c => !!c && c[2] > c[0] + 30 && avg(c) < 110, light = c => !!c && avg(c) > 80 && c[2] - c[0] < 40; // laboratório: cinza claro
       ok(r9.before !== r9.off && r9.after === r9.before && r9.frozenMat, "troca de tema funciona com materiais congelados");
+      ok(navy(px.atlas) && light(px.lab) && navy(px.back), "pixel renderizado do piso: tema ATLAS " + px.atlas + " · laboratório " + px.lab + " · ATLAS de novo " + px.back);
     }
     return out;
   })();
