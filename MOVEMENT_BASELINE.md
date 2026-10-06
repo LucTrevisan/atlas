@@ -292,7 +292,7 @@ npm install          # uma vez (puppeteer-core; usa o Chrome instalado)
 npm test             # compara com baseline.json — exit 1 se qualquer valor mudar
 ```
 
-Cobertura (≈ 2 500 valores comparados com tolerância 1e-6):
+Cobertura (9 626 valores comparados com tolerância 1e-6):
 
 | Item do checklist | Como é verificado |
 |---|---|
