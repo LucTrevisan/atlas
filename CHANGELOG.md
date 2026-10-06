@@ -144,3 +144,27 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html` (CSS, HTML de marcadores/cartão/seleção, script de UI), `tests/movement/run.mjs`, `CHANGELOG.md`.
+
+## ETAPA 5 — MQTT UX (2026-10-06) — `v5-atlas-mqtt`
+
+### Alterado
+- **Configurações → MQTT**: bloco de status (Desconectado / Conectando… / Conectado · host / Erro) com o `#mq` original dentro; rótulos e dica de URL (aviso se não começar com `wss://` ou se `ws://` em página HTTPS); botão Mostrar/Ocultar senha (só troca o `type` do campo); seção **Modo de operação** com descrição dos dois modos; resumo de **tópicos** derivado do prefixo (`<pfx>/cmd` 20 Hz · QoS 0; `<pfx>/estado` 10 Hz; payload); ajuda sobre broker/ESP32 e aviso de que as credenciais ficam no navegador.
+- **ESP32 real**: listener **adicional e somente leitura** em `message` do cliente mqtt.js (o app já assina `<pfx>/estado`; mqtt.js aceita vários listeners). Registra horário e último JSON de `/estado`. Não escreve em `S`, não publica, não assina, não altera tópicos/QoS/payload/handler original.
+- **Header**: chip ESP32 = `● online` (pacote < 1,5 s), `◐ sem dados` (já houve pacote, parou), `○ sem telemetria`.
+- **Telemetria**: tabela Junta | Comando (`S`) | Robô real (`/estado`); selo "Dados simulados" / "Comando × estado real" / "Espelhando robô real"; último pacote (ms), taxa de `/estado` medida (Hz), envio "20 Hz · QoS 0 (configurado)" ou "parado"; latência "não medida" (payload sem carimbo de tempo — nada inventado).
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal idêntico ao baseline; IDs mantidos; a camada nova não chama `publish/subscribe/unsubscribe/end/mqtt.connect` nem escreve em `S`/`mode`/`demo`/`mq` (verificado por análise).
+- Broker, tópicos, QoS, payload, parsing, reconnect e espelhamento inalterados (golden MQTT idêntico).
+
+### Testado
+- `npm test`: APROVADO (12/12) + UX: ESP32 online e feedback por junta; `/estado` com espelho desligado não altera `S`; 2 listeners (o original não é substituído); `◐ sem dados` após 1,5 s; status em Configurações.
+- Cliente MQTT falso do teste passou a aceitar vários listeners por evento (fiel ao mqtt.js); o golden de MQTT/espelhamento continua idêntico.
+- Desempenho (novo `tests/movement/bench.mjs`, 10 s): v0 original 18,2 / 19,9 pub/s × v5 18,6 / 19,9 pub/s; v4 × v5 empatados. (Janelas de 1 s mostraram ruído de até ±4 pub/s no Chrome headless com GPU por software.)
+- Screenshots: Configurações (desconectado/conectado), Telemetria com ESP32 simulado.
+
+### Regressões
+- Nenhuma.
+
+### Arquivos modificados
+- `index.html` (CSS, HTML Telemetria/Configurações, script de UI), `tests/movement/run.mjs`, `tests/movement/bench.mjs` (novo), `CHANGELOG.md`.

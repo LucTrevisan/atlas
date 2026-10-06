@@ -134,11 +134,12 @@ try {
 
     // ---------- MQTT (cliente falso; protocolo real do app) ----------
     const log = { connect: null, subscribe: [], publish: [] };
-    const handlers = {};
+    // como no mqtt.js real, vários listeners por evento; handlers.X(...) emite para todos
+    const lst = {}; const handlers = new Proxy({}, { get: (_, ev) => (...a) => (lst[ev] || []).forEach(f => f(...a)) });
     const realMqtt = window.mqtt;
     window.mqtt = { connect: (url, opts) => {
       log.connect = { url, opts: { ...opts, clientId: opts.clientId.replace(/[0-9a-f]+$/, "<rand>") } };
-      return { connected: true, on: (ev, f) => (handlers[ev] = f), subscribe: t => log.subscribe.push(t),
+      return { connected: true, on: (ev, f) => (lst[ev] ||= []).push(f), subscribe: t => log.subscribe.push(t),
         publish: (t, p, o) => log.publish.push({ t, p, o }), end: () => {} };
     } };
     $("url").value = "wss://test.invalid:8884/mqtt"; $("usr").value = "u"; $("pwd").value = "p"; $("pfx").value = "braco";
@@ -266,6 +267,32 @@ try {
         document.getElementById("sel-close").click(); $("rst").click(); return n;
       });
       ok(g >= 5, "garra destacada (peça instanciada via malha-fonte, sem erro)");
+    }
+    // ETAPA 5: escuta somente leitura de <pfx>/estado
+    if (await page.$("#tele-rows")) {
+      const r5 = await page.evaluate(async () => {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const lst = {}, real = window.mqtt;
+        window.mqtt = { connect: () => ({ connected: true, on: (ev, f) => (lst[ev] ||= []).push(f), subscribe() {}, publish() {}, end() {} }) };
+        const emit = (ev, ...a) => (lst[ev] || []).forEach(f => f(...a));
+        $("url").value = "wss://test.invalid:8884/mqtt"; $("con").click(); emit("connect");
+        if (document.getElementById("p-tele").hidden) document.getElementById("t-tele").click();
+        await wait(400);
+        const before = JSON.stringify(S);
+        for (let i = 0; i < 5; i++) { emit("message", "braco/estado", { toString: () => '{"waist":12.5,"shoulder":-8,"elbow":40,"pitch":-5,"grip":18}' }); await wait(100); }
+        await wait(300);
+        const res = { chip: document.querySelector("#chip-esp .v").textContent, fb: [...document.querySelectorAll("#tele-rows .fb")].map(td => td.textContent),
+          sUnchanged: JSON.stringify(S) === before, listeners: (lst.message || []).length, conn: document.getElementById("conn-t").textContent };
+        await wait(1800);
+        res.stale = document.querySelector("#chip-esp .v").textContent;
+        window.mqtt = real; mq = null;
+        return res;
+      });
+      ok(r5.chip === "● online" && r5.fb[0] === "12.5°" && r5.fb[4] === "18.0°", "ESP32 online e feedback por junta a partir de /estado");
+      ok(r5.sUnchanged, "com espelho desligado, /estado não altera S (handler original preservado)");
+      ok(r5.listeners === 2, "listener adicional não substitui o handler original (2 listeners)");
+      ok(r5.stale === "◐ sem dados", "sem pacotes por >1,5 s → ESP32 sem dados");
+      ok(r5.conn.startsWith("Conectado"), "status de conexão em Configurações");
     }
     return out;
   })();

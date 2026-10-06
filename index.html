@@ -178,6 +178,43 @@ input[type=range]:focus-visible{outline:2px solid var(--atlas-cyan);outline-offs
 .sel-card .icon-btn{position:absolute;right:4px;top:2px;margin:0;height:32px}
 .r.is-sel{box-shadow:inset 3px 0 0 var(--atlas-cyan);padding-left:10px;margin-left:-10px;background:linear-gradient(90deg,rgba(0,217,255,.08),transparent 70%)}
 
+.tele-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tele-table th{padding:4px 0;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-text-secondary);text-align:right;border-bottom:1px solid var(--atlas-border)}
+.tele-table th:first-child,.tele-table td:first-child{text-align:left}
+.tele-table td{padding:6px 0;border-bottom:1px solid var(--atlas-border-soft);text-align:right;font:13px var(--atlas-font-mono);color:var(--atlas-text)}
+.tele-table td:first-child{font:600 11px var(--atlas-font);letter-spacing:.06em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.tele-table td:first-child b{color:var(--atlas-cyan);font-weight:700;margin-right:6px}
+.tele-table td.fb{color:var(--atlas-success)}
+.tele-table td.fb[data-s=off]{color:var(--atlas-text-secondary)}
+.tele-table td.fb[data-s=warn]{color:var(--atlas-warning)}
+
+.conn-box{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;margin:0 0 12px;padding:10px 12px;
+  border:1px solid var(--atlas-border-soft);background:rgba(6,20,38,.7)}
+.conn-box .dot{grid-row:span 2;width:10px;height:10px;border-radius:50%;background:var(--atlas-text-secondary)}
+.conn-box[data-s=ok]{border-color:rgba(32,230,164,.45)}.conn-box[data-s=ok] .dot{background:var(--atlas-success);box-shadow:0 0 8px var(--atlas-success)}
+.conn-box[data-s=warn]{border-color:rgba(255,176,32,.5)}.conn-box[data-s=warn] .dot{background:var(--atlas-warning)}
+.conn-box[data-s=danger]{border-color:rgba(255,51,79,.6)}.conn-box[data-s=danger] .dot{background:var(--atlas-danger)}
+.conn-box .t{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.conn-box[data-s=ok] .t{color:var(--atlas-success)}.conn-box[data-s=warn] .t{color:var(--atlas-warning)}.conn-box[data-s=danger] .t{color:var(--atlas-danger)}
+.conn-box #mq{grid-column:2}
+.conn-box .hst{text-transform:none;letter-spacing:0;font-weight:500;color:var(--atlas-text-secondary)}
+.pw-row{position:relative}
+.pw-row input{padding-right:64px}
+.pw-row button{position:absolute;right:2px;top:4px;height:30px;min-width:56px;border:0;background:transparent;color:var(--atlas-cyan-soft);
+  font:600 10px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.pw-row button:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+.field-hint{margin:-2px 0 8px;font-size:10.5px;color:var(--atlas-text-secondary)}
+.field-hint[data-s=warn]{color:var(--atlas-warning)}
+.opt-desc{margin:-8px 0 4px 24px;font-size:10.5px;color:var(--atlas-text-secondary)}
+.topics{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11px}
+.topics dt{color:var(--atlas-text-secondary);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;padding-top:2px}
+.topics dd{margin:0;font-family:var(--atlas-font-mono);color:var(--atlas-text);overflow-wrap:anywhere}
+.topics dd small{display:block;color:var(--atlas-text-secondary);font-family:var(--atlas-font)}
+details.help{margin-top:12px;border-top:1px solid var(--atlas-border-soft);padding-top:8px}
+details.help summary{cursor:pointer;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-cyan-soft);min-height:32px;display:flex;align-items:center}
+details.help p{margin:4px 0;font-size:11px;color:var(--atlas-text-secondary)}
+details.help summary:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+
 .live-banner{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;padding:8px 10px;
   border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.10);color:var(--atlas-warning);font-size:11.5px}
 .live-banner[hidden]{display:none}
@@ -317,13 +354,19 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
             <dt>ESP32</dt><dd id="tele-esp" data-s="off">sem telemetria</dd>
             <dt>Envio ao robô</dt><dd id="tele-snd" data-s="off">desligado</dd>
           </dl>
-          <h3>Ângulos <span class="badge" id="tele-src">Dados simulados</span></h3>
-          <dl class="readout" id="tele-readout"></dl>
+          <h3>Ângulos <span class="badge" id="tele-src" data-s="warn">Dados simulados</span></h3>
+          <table class="tele-table" aria-describedby="tele-src">
+            <thead><tr><th scope="col">Junta</th><th scope="col">Comando</th><th scope="col">Robô real</th></tr></thead>
+            <tbody id="tele-rows"></tbody>
+          </table>
           <h3>Rede</h3>
           <dl class="readout">
-            <dt>Latência</dt><dd data-s="off">não medida</dd>
-            <dt>Último pacote</dt><dd data-s="off">não medido</dd>
+            <dt>Último pacote do ESP32</dt><dd id="tele-last" data-s="off">—</dd>
+            <dt>Taxa de estado</dt><dd id="tele-rate" data-s="off">—</dd>
+            <dt>Envio de comandos</dt><dd id="tele-tx" data-s="off">—</dd>
+            <dt>Latência</dt><dd data-s="off" title="O payload não tem carimbo de tempo; a latência real não pode ser medida.">não medida</dd>
           </dl>
+          <p class="hint">“Robô real” = último <code>&lt;prefixo&gt;/estado</code> publicado pelo ESP32 (10 Hz). Sem dados reais, só o comando do Digital Twin é exibido.</p>
         </section>
 
         <section role="tabpanel" id="p-xr" aria-labelledby="t-xr" hidden>
@@ -343,19 +386,40 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
         </section>
 
         <section role="tabpanel" id="p-cfg" aria-labelledby="t-cfg" hidden>
-          <h3>MQTT / ESP32</h3>
+          <h3>MQTT — conexão</h3>
+          <div class="conn-box" id="conn-box" data-s="off" role="status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="t" id="conn-t">Desconectado</span>
+            <div id="mq">desconectado</div>
+          </div>
           <label class="field" for="url">Broker (WebSocket seguro)</label>
-          <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off">
+          <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off" aria-describedby="url-hint">
+          <p class="field-hint" id="url-hint">Ex.: HiveMQ/EMQX Cloud — wss://HOST:8884/mqtt</p>
           <label class="field" for="usr">Usuário</label>
           <input id="usr" type="text" placeholder="usuário" autocomplete="username">
           <label class="field" for="pwd">Senha</label>
-          <input id="pwd" type="password" placeholder="senha" autocomplete="current-password">
+          <div class="pw-row"><input id="pwd" type="password" placeholder="senha" autocomplete="current-password"><button type="button" id="pwd-eye" aria-controls="pwd" aria-pressed="false">Mostrar</button></div>
           <label class="field" for="pfx">Prefixo do tópico</label>
           <input id="pfx" type="text" placeholder="prefixo do tópico (ex: braco)" value="braco">
-          <label class="check"><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
-          <label class="check"><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
           <div class="b"><button id="con">Conectar</button></div>
-          <div id="mq">desconectado</div>
+
+          <h3>Modo de operação</h3>
+          <label class="check"><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
+          <p class="opt-desc">Digital Twin → robô físico. Pede confirmação.</p>
+          <label class="check"><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
+          <p class="opt-desc">Robô físico → Digital Twin. Os dois modos são exclusivos.</p>
+
+          <h3>Tópicos</h3>
+          <dl class="topics">
+            <dt>Publica</dt><dd><span id="tp-cmd">braco/cmd</span><small>20 Hz · QoS 0 · somente com “Enviar comandos”</small></dd>
+            <dt>Assina</dt><dd><span id="tp-est">braco/estado</span><small>ESP32 publica a 10 Hz</small></dd>
+            <dt>Payload</dt><dd>{"waist", "shoulder", "elbow", "pitch", "grip"}<small>graus, relativos à pose do modelo</small></dd>
+          </dl>
+          <details class="help">
+            <summary>Ajuda: broker e ESP32</summary>
+            <p>O navegador só fala MQTT sobre WebSocket seguro (<code>wss://</code>); o ESP32 usa MQTT comum (TCP 1883/8883). Use um broker com os dois.</p>
+            <p>URL, usuário, senha e prefixo ficam salvos neste navegador ao clicar em Conectar.</p>
+          </details>
         </section>
 
       </div>
@@ -681,7 +745,31 @@ function tick(dt){
     const dt=document.createElement("dt");dt.innerHTML=(j?`<b>${j}</b>`:"")+l;
     const dd=document.createElement("dd");dd.textContent="—";box.append(dt,dd);return [k,dd];
   }));
-  const twinDD=mkReadout(el("twin-readout")), teleDD=mkReadout(el("tele-readout"));
+  const twinDD=mkReadout(el("twin-readout"));
+  const teleRow=Object.fromEntries(JOINTS.map(([k,j,l])=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${j?`<b>${j}</b>`:""}${l}</td><td>—</td><td class="fb" data-s="off">—</td>`;
+    el("tele-rows").append(tr);return [k,{cmd:tr.children[1],fb:tr.children[2]}];
+  }));
+
+  // ----- ETAPA 5: escuta SOMENTE LEITURA de <pfx>/estado -----
+  // O app já assina <pfx>/estado ao conectar, mas só usa as mensagens no modo espelho.
+  // Um listener adicional no cliente mqtt.js (que aceita vários) registra quando o ESP32
+  // publicou e o último estado — sem alterar S, tópicos, QoS, payload ou o handler original.
+  const esp={client:null,last:0,data:null,times:[]};
+  function tapClient(c){
+    if(!c||esp.client===c||typeof c.on!=="function")return;
+    esp.client=c;esp.last=0;esp.data=null;esp.times=[];
+    c.on("message",(topic,msg)=>{
+      try{
+        if(esp.client!==c||!/\/estado$/.test(String(topic)))return;
+        const d=JSON.parse(String(msg));if(!d||typeof d!=="object")return;
+        const t=performance.now();esp.last=t;esp.data=d;esp.times.push(t);
+        while(esp.times.length&&t-esp.times[0]>2000)esp.times.shift();
+      }catch(e){}
+    });
+  }
+  const ESP_FRESH=1500; // ESP32 publica a cada 100 ms; >1,5 s sem pacote = sem dados
   const fmt=v=>(typeof v==="number"&&isFinite(v)?v.toFixed(1):"—")+"°";
 
   el("xr-secure").textContent=window.isSecureContext?"sim":"não";
@@ -713,17 +801,47 @@ function tick(dt){
     else if(client){ms="warn";mt="◐ conectando"}
     else{ms="off";mt="○ offline"}
     chip("chip-mqtt",ms,mt);
-    const espMirror=md==="mirror"&&mir&&con;
-    chip("chip-esp",espMirror?"info":"off",espMirror?"◐ espelho ativo":"○ sem telemetria");
+    tapClient(client);
+    const now=performance.now(), age=esp.last?now-esp.last:Infinity;
+    const espOn=con&&esp.client===client&&age<ESP_FRESH, espStale=con&&esp.client===client&&esp.last&&!espOn;
+    const ageTxt=a=>a<1000?Math.round(a)+" ms":(a/1000).toFixed(1)+" s";
+    if(espOn)        chip("chip-esp","ok","● online");
+    else if(espStale)chip("chip-esp","warn","◐ sem dados");
+    else             chip("chip-esp","off","○ sem telemetria");
+
+    // Configurações → MQTT (status + derivados do formulário; somente exibição)
+    const cb=el("conn-box");
+    if(cb.dataset.s!==ms)cb.dataset.s=ms;
+    const host=(()=>{try{return new URL(el("url").value.trim()).host}catch(e){return ""}})();
+    const ct=con?"Conectado":ms==="danger"?"Erro de conexão":client?"Conectando…":"Desconectado", chost=con&&host?" · "+host:"";
+    if(el("conn-t").textContent!==ct+chost){el("conn-t").textContent=ct;if(chost){const h=document.createElement("span");h.className="hst";h.textContent=chost;el("conn-t").append(h)}}
+    const pfx=el("pfx").value.trim()||"braco";
+    if(el("tp-cmd").textContent!==pfx+"/cmd"){el("tp-cmd").textContent=pfx+"/cmd";el("tp-est").textContent=pfx+"/estado"}
+    const u=el("url").value.trim(), uh=el("url-hint");
+    let hs="",ht="Ex.: HiveMQ/EMQX Cloud — wss://HOST:8884/mqtt";
+    if(u&&!/^wss?:\/\//i.test(u)){hs="warn";ht="A URL deve começar com wss:// (WebSocket seguro)."}
+    else if(/^ws:\/\//i.test(u)&&location.protocol==="https:"){hs="warn";ht="Página HTTPS: o navegador bloqueia ws:// — use wss://."}
+    if(uh.textContent!==ht){uh.textContent=ht;uh.dataset.s=hs}
 
     if(active==="twin")JOINTS.forEach(([k])=>{const t=fmt(S[k]);if(twinDD[k].textContent!==t)twinDD[k].textContent=t});
     if(active==="tele"){
       set("tele-mqtt",ms,mt.slice(2));
-      set("tele-esp",espMirror?"ok":"off",espMirror?"estado recebido (espelho)":"sem telemetria");
+      set("tele-esp",espOn?"ok":espStale?"warn":"off",espOn?"online":espStale?"sem dados há "+ageTxt(age):"sem telemetria");
       set("tele-snd",snd?"warn":"off",snd?(con?"ativo — comandos ao robô":"armado (MQTT offline)"):"desligado");
-      const src=el("tele-src"), real=espMirror;
-      src.textContent=real?"Estado do robô real":"Dados simulados";src.dataset.s=real?"":"warn";
-      JOINTS.forEach(([k])=>{const t=fmt(S[k]);if(teleDD[k].textContent!==t)teleDD[k].textContent=t});
+      const src=el("tele-src");
+      const st=espOn?(md==="mirror"&&mir?"Espelhando robô real":"Comando × estado real"):"Dados simulados";
+      if(src.textContent!==st){src.textContent=st;src.dataset.s=espOn?"":"warn"}
+      JOINTS.forEach(([k])=>{
+        const r=teleRow[k], c=fmt(S[k]);
+        if(r.cmd.textContent!==c)r.cmd.textContent=c;
+        const v=espOn&&esp.data?esp.data[k]:undefined, has=typeof v==="number";
+        const f=has?fmt(v):espStale&&esp.data&&typeof esp.data[k]==="number"?fmt(esp.data[k]):"—";
+        const fs=has?"":espStale?"warn":"off";
+        if(r.fb.textContent!==f)r.fb.textContent=f; if(r.fb.dataset.s!==fs)r.fb.dataset.s=fs;
+      });
+      set("tele-last",espOn?"ok":espStale?"warn":"off",esp.last&&con?ageTxt(age):"—");
+      set("tele-rate",espOn?"ok":"off",espOn&&esp.times.length>1?(esp.times.length/2).toFixed(1)+" Hz":"—");
+      set("tele-tx",snd&&con?"warn":"off",snd&&con?"20 Hz · QoS 0 (configurado)":"parado");
     }
   }
   setInterval(refresh,250);
@@ -782,6 +900,13 @@ function tick(dt){
   el("dlg-real-no").onclick=()=>dlg.close();
   el("dlg-real-yes").onclick=()=>{dlg.close();enableReal()};
   dlg.addEventListener("close",()=>sndBox.focus());
+
+  // Mostrar/ocultar senha (só o tipo do campo; a lógica lê .value)
+  el("pwd-eye").onclick=()=>{
+    const p=el("pwd"), show=p.type==="password";
+    p.type=show?"text":"password";
+    el("pwd-eye").textContent=show?"Ocultar":"Mostrar";el("pwd-eye").setAttribute("aria-pressed",show);
+  };
 
   // ----- ETAPA 4: Digital Twin — seleção, marcadores e destaque -----
   // Somente leitura da cena: posições absolutas dos TransformNodes existentes e
