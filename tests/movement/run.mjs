@@ -330,12 +330,18 @@ try {
         xrCamRef = { position: V(0, 1.6, 0), getDirection: () => V(1, 0, 0) };
         $("rst").click(); inXR = true; await wait(400);
         const st = () => ATLAS_UI.hands().state, pc = () => ATLAS_UI.xrPanel().content.hands, res = {};
+        // espera por condição (o estado é amostrado a 100 ms e `follow` muda no frame seguinte)
+        const until = async (fn, ms = 3000) => { const t = performance.now(); while (!fn() && performance.now() - t < ms) await wait(50); return fn(); };
+        const frames = n => new Promise(r => { let k = 0; const o = sceneRef.onAfterRenderObservable.add(() => { if (++k >= n) { sceneRef.onAfterRenderObservable.remove(o); r(); } }); });
+        await until(() => ATLAS_UI.xrPanel().enabled && pc() && st() === "searching");
         res.searching = st(); res.panelOn = ATLAS_UI.xrPanel().enabled;
-        Lp = left(0.06); Rp = right; await wait(300); res.detected = st(); res.bar = pc().bar; res.instrDetected = pc().instr;
-        Lp = left(0.02); Rp = null; await wait(300); res.armed = st(); res.armedSub = pc().sub;
-        Rp = right; const s0 = JSON.stringify(S); await wait(600); res.active = st(); res.moved = JSON.stringify(S) !== s0;
-        await wait(3200); res.learned = ATLAS_UI.hands().learned; res.instrAfter = pc().instr;
-        Lp = left(0.05); await wait(300); res.release = st(); const s1 = JSON.stringify(S); await wait(300); res.stopped = JSON.stringify(S) === s1;
+        Lp = left(0.06); Rp = right; await until(() => st() === "detected" && pc().state === "detected");
+        res.detected = st(); res.bar = pc().bar; res.instrDetected = pc().instr;
+        Lp = left(0.02); Rp = null; await until(() => st() === "armed" && pc().state === "armed"); res.armed = st(); res.armedSub = pc().sub;
+        Rp = right; const s0 = JSON.stringify(S); await until(() => st() === "active"); await frames(3); res.active = st(); res.moved = JSON.stringify(S) !== s0;
+        await until(() => ATLAS_UI.hands().learned, 6000); await until(() => pc().instr === null); res.learned = ATLAS_UI.hands().learned; res.instrAfter = pc().instr;
+        Lp = left(0.05); await until(() => st() === "detected"); res.release = st(); await frames(2);
+        const s1 = JSON.stringify(S); await frames(5); res.stopped = JSON.stringify(S) === s1;
         inXR = false; handFeat = saved.hf; xrCamRef = saved.cam; await wait(300); res.panelOff = !ATLAS_UI.xrPanel().enabled;
         $("rst").click(); return res;
       });
