@@ -82,8 +82,7 @@ html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text
     linear-gradient(180deg,rgba(0,108,255,.10),transparent 40%),
     var(--atlas-panel-glass);
   border:1px solid var(--atlas-border);
-  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer));
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer))}
 .panel[hidden]{display:none}
 .panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;
   border-bottom:1px solid var(--atlas-border-soft)}
@@ -1070,11 +1069,38 @@ function tick(dt){
     });
     if(selected)select(selected);
     sceneTheme.init();
+    perf.init();
   }
   const waitTwin=setInterval(()=>{
     if(typeof pose==="undefined"||!pose||typeof sceneRef==="undefined"||!sceneRef)return;
     clearInterval(waitTwin);initTwin();
   },200);
+
+  // ----- ETAPA 9: performance — SOMENTE elementos não cinemáticos -----
+  // Ambiente do laboratório: malhas estáticas, sem filhos e fora da hierarquia do braço
+  // (stage → j_* → peças). Nenhum nó do robô é congelado; freezeActiveMeshes NÃO é usado.
+  const perf=(()=>{
+    const ENV=/^(floor|safety\d|w|lum|win|banner|peg|bench|vise|shelf|bin|cnc|cncTop|ped)$/;
+    const report={frozen:0,skipped:[]};
+    function init(){
+      const sc=sceneRef, stage=sc.getTransformNodeByName("stage");
+      const robot=new Set([stage,...stage.getDescendants(false)]);
+      sc.meshes.forEach(m=>{
+        if(!ENV.test(m.name))return;
+        // salvaguardas: não pertence ao braço, não tem filhos, não tem parent
+        if(robot.has(m)||m.getChildren().length||m.parent){report.skipped.push(m.name);return}
+        m.isPickable=false;          // toque/clique só precisa das peças do braço
+        m.freezeWorldMatrix();       // posição/rotação nunca mudam
+        m.doNotSyncBoundingInfo=true;
+        report.frozen++;
+      });
+      sc.skipPointerMovePicking=true; // sem raycast a cada movimento do mouse (o toque continua com pick)
+      // telas 3x (celulares): renderiza no máximo a 2x. Em VR a resolução é a do headset (não afetada).
+      const eng=sc.getEngine(), dpr=window.devicePixelRatio||1;
+      if(dpr>2){eng.setHardwareScalingLevel(1/2);eng.resize()}
+    }
+    return {init,report};
+  })();
 
   // ----- Cores da cena conforme a referência visual (somente aparência) -----
   // Altera APENAS cores/brilho de materiais já existentes (mesmos objetos; nenhum material é
@@ -1122,9 +1148,11 @@ function tick(dt){
       if(!ready)return;
       const sc=sceneRef, onScene=el("th-scene").checked, onRobot=el("th-robot").checked;
       const robotSet=new Set(robotMats.map(([m])=>m)), envSet=new Set(envOps.map(([m])=>m));
+      envSet.forEach(m=>m.unfreeze&&m.unfreeze());
       restore(o=>o===sc||envSet.has(o)||robotSet.has(o));
       if(onScene){sc.clearColor=new BABYLON.Color4(.008,.043,.094,1);sc.fogColor=C("#061426");envOps.forEach(([m,fn])=>fn(m))}
       if(onRobot)robotMats.forEach(([m,to])=>{m.albedoColor=C(to).toLinearSpace();m.metallic=0;m.roughness=.6}); // PLA fosco (albedo PBR em espaço linear)
+      envSet.forEach(m=>m.freeze&&m.freeze()); // ETAPA 9: materiais do ambiente estáticos (só mudam aqui)
     }
     el("th-scene").onchange=()=>{try{localStorage.setItem("atlas_th_scene",el("th-scene").checked?"1":"0")}catch(e){}apply()};
     el("th-robot").onchange=()=>{try{localStorage.setItem("atlas_th_robot",el("th-robot").checked?"1":"0")}catch(e){}apply()};
@@ -1275,7 +1303,8 @@ function tick(dt){
   // Leitura (somente) para testes e diagnóstico
   window.ATLAS_UI=Object.freeze({
     xrPanel:()=>({exists:!!xrp.mesh,enabled:!!(xrp.mesh&&xrp.mesh.isEnabled()),content:xrp.sig?JSON.parse(xrp.sig):null}),
-    hands:()=>({state:hands.state,left:hands.left,right:hands.right,pinch:hands.pinch,learned:hands.learned})});
+    hands:()=>({state:hands.state,left:hands.left,right:hands.right,pinch:hands.pinch,learned:hands.learned}),
+    perf:()=>({...perf.report})});
 
   let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
   if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";

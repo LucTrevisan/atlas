@@ -354,6 +354,42 @@ try {
       ok(r8.release === "detected" && r8.stopped, "soltar a pinça: movimento para (comportamento original)");
       ok(r8.panelOff, "ao sair de VR o painel do headset é desativado");
     }
+    // ETAPA 9: performance só em elementos não cinemáticos
+    if (await page.evaluate(() => !!(window.ATLAS_UI && ATLAS_UI.perf))) {
+      await page.evaluate(() => { const p = document.getElementById("panel"); if (!p.hidden) document.getElementById("panel-close").click(); document.getElementById("sel-close").click();
+        const h = document.getElementById("hs-toggle"); h.checked = false; h.dispatchEvent(new Event("change")); }); // clique direto na peça, sem marcador por cima
+      const pre = await page.evaluate(() => {
+        const sc = sceneRef, stage = sc.getTransformNodeByName("stage");
+        const robot = [stage, ...stage.getDescendants(false)];
+        window.__picks = 0; const orig = sc.pick.bind(sc); sc.__origPick = orig; sc.pick = (...a) => { window.__picks++; return orig(...a); };
+        // ponto de tela do centro do braço 1 (ombro) para um clique real
+        const m = sc.getTransformNodeByName("Arm 01:1").getChildMeshes(false).find(x => x.getTotalVertices() > 0);
+        const c = m.getBoundingInfo().boundingSphere.centerWorld, eng = sc.getEngine(), cam = sc.activeCamera;
+        const pp = BABYLON.Vector3.Project(c, BABYLON.Matrix.IdentityReadOnly, sc.getTransformMatrix(), cam.viewport.toGlobal(eng.getRenderWidth(), eng.getRenderHeight()));
+        const r = eng.getRenderingCanvas().getBoundingClientRect();
+        return { robotFrozen: robot.filter(n => n.isWorldMatrixFrozen).map(n => n.name), report: ATLAS_UI.perf(),
+          x: r.left + pp.x / eng.getRenderWidth() * r.width, y: r.top + pp.y / eng.getRenderHeight() * r.height };
+      });
+      for (let i = 0; i < 25; i++) await page.mouse.move(300 + i * 30, 300 + (i % 5) * 20);
+      await new Promise(r => setTimeout(r, 300));
+      const movePicks = await page.evaluate(() => window.__picks);
+      await page.mouse.click(pre.x, pre.y);
+      await page.waitForFunction(() => document.getElementById("sel-title").textContent.length > 0, { timeout: 8000 }).catch(() => {});
+      const r9 = await page.evaluate(async () => {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const sel = document.getElementById("sel-title").textContent, picks = window.__picks;
+        sceneRef.pick = sceneRef.__origPick; document.getElementById("sel-close").click();
+        const fm = sceneRef.getMeshByName("floor").material, before = fm.diffuseColor.toHexString();
+        const t = document.getElementById("th-scene"); t.checked = false; t.dispatchEvent(new Event("change")); await wait(100);
+        const off = fm.diffuseColor.toHexString(); t.checked = true; t.dispatchEvent(new Event("change")); await wait(100);
+        const h = document.getElementById("hs-toggle"); h.checked = true; h.dispatchEvent(new Event("change"));
+        return { sel, picks, before, off, after: fm.diffuseColor.toHexString(), frozenMat: fm.isFrozen };
+      });
+      ok(movePicks === 0, "mover o mouse não dispara picking (" + movePicks + " picks)");
+      ok(/ombro/i.test(r9.sel), "clique real na peça do ombro ainda seleciona J2 (pick no toque)");
+      ok(pre.robotFrozen.length === 0 && pre.report.frozen > 20 && pre.report.skipped.length === 0, "só o ambiente é congelado (" + pre.report.frozen + " malhas); nenhum nó do robô");
+      ok(r9.before !== r9.off && r9.after === r9.before && r9.frozenMat, "troca de tema funciona com materiais congelados");
+    }
     return out;
   })();
 } finally {

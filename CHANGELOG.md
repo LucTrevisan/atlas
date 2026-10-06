@@ -242,3 +242,33 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html`, `CHANGELOG.md`.
+
+## ETAPA 9 — PERFORMANCE (2026-10-06) — `v9-atlas-performance`
+
+### Alterado (somente elementos não cinemáticos)
+- **Ambiente estático** (piso, faixas, paredes, teto, luminárias, janela, banner, painel de ferramentas, bancada, morsa, estante, caixas, CNC, pedestal — 32 malhas): `freezeWorldMatrix()`, `doNotSyncBoundingInfo = true`, `isPickable = false`. Salvaguardas em runtime: só congela malhas sem parent, sem filhos e fora da hierarquia `stage → j_* → peças`.
+- `scene.skipPointerMovePicking = true`: nenhum raycast a cada movimento do mouse (antes: 1 pick por evento, ~1–5 ms nesta máquina contra a malha de 6 MB). O toque/clique continua fazendo pick e selecionando juntas.
+- Malhas clicáveis 53 → 21 (só o braço), o que barateia o pick do toque.
+- Materiais do ambiente congelados (`freeze()`), descongelados apenas durante a troca de tema.
+- Telas com `devicePixelRatio > 2` renderizam no máximo a 2x (celulares); VR não é afetado.
+- CSS: removido o `backdrop-filter` do painel lateral (recomposição a cada frame sobre o WebGL; o painel já é 88% opaco).
+
+### NÃO alterado (por segurança)
+- Nenhum nó do robô (`stage`, `j_*`, peças do GLB) congelado; `freezeActiveMeshes()` **não** usado; lógica de render loop, luzes, ambiente PBR e cinemática intactas.
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal idêntico ao baseline.
+
+### Testado
+- `npm test`: APROVADO (2 execuções) + UX: mover o mouse gera 0 picks; clique real na peça do ombro seleciona J2; só o ambiente congelado (32 malhas), nenhum nó do robô; troca de tema funciona com materiais congelados.
+- Benchmark 10 s (Chrome headless + SwiftShader, máquina carregada): v8b 17,0/17,5 pub/s · 1,1–1,2 fps × v9 17,4/16,6 pub/s · 1,2–1,3 fps — equivalentes. O ganho de FPS precisa ser medido em GPU real (desktop/Quest); aqui a renderização por software domina e mascara diferenças.
+
+### Regressões
+- Nenhuma.
+
+### Observação de processo
+- Os commits `1f1bdbe` ("Camada IoT…") e `d267d88` ("Adiciona o código de teste do MPU6050"), feitos por `Luciano <luciano.trevisan@docente.senai.br>` fora desta sessão, contêm na verdade as correções do teste desta refatoração (verificações por condição e FPS no `bench.mjs`). Histórico mantido como está.
+- O commit `v8b-atlas-cores` foi criado com uma execução de teste instável (timing); corrigido em seguida tornando as verificações de UX baseadas em condição.
+
+### Arquivos modificados
+- `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.
