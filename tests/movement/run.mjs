@@ -45,7 +45,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 const pageErrors = [];
-page.on("pageerror", e => pageErrors.push(String(e)));
+page.on("pageerror", e => pageErrors.push(String(e.stack || e)));
 
 let result, uxChecks = [];
 try {
@@ -224,6 +224,49 @@ try {
     await new Promise(r => setTimeout(r, 800)); const f2 = await fill();
     await page.evaluate(() => { $("demo").click(); $("rst").click(); });
     ok(f1 !== f2, "trilho e valor do slider acompanham o Demo");
+    // ETAPA 4: seleção / destaque (não destrutivo)
+    if (await page.$("#hotspots")) {
+      await page.waitForFunction(() => sceneRef.effectLayers && sceneRef.effectLayers.some(l => l.name === "atlas-hl"), { timeout: 30000 }).catch(() => {});
+      const r4 = await page.evaluate(async () => {
+        const hl = sceneRef.effectLayers.find(l => l.name === "atlas-hl");
+        const meshesOf = n => sceneRef.getTransformNodeByName(n).getChildMeshes(false).filter(m => m.getTotalVertices() > 0);
+        const arm = meshesOf("Arm 01:1"), all = sceneRef.meshes.filter(m => m.getTotalVertices() > 0);
+        const mats = all.map(m => m.material && m.material.uniqueId);
+        const hs = [...document.querySelectorAll("#hotspots .hs")].find(b => b.textContent === "J2");
+        hs.click(); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const res = {
+          ctrlOpen: !document.getElementById("p-ctrl").hidden,
+          rowSel: inputs.shoulder[0].parentElement.classList.contains("is-sel"),
+          focused: document.activeElement === inputs.shoulder[0],
+          hlArm: !!hl && arm.every(m => hl.hasMesh(m)),
+          hlOnlyArm: !!hl && all.filter(m => hl.hasMesh(m)).length === arm.length,
+          card: document.getElementById("sel-title").textContent,
+        };
+        inputs.shoulder[0].value = 70; inputs.shoulder[0].dispatchEvent(new Event("input"));
+        res.limit = document.getElementById("sel-state").textContent;
+        inputs.elbow[0].focus(); await new Promise(r => setTimeout(r, 50));
+        res.focusSelects = document.querySelector('#hotspots .hs[aria-pressed="true"]')?.textContent;
+        res.hlElbow = !!hl && meshesOf("Arm 02 v3:1").every(m => hl.hasMesh(m)) && !arm.some(m => hl.hasMesh(m));
+        document.getElementById("sel-close").click();
+        res.cleared = !!hl && all.every(m => !hl.hasMesh(m)) && document.getElementById("sel-card").hidden;
+        res.matsSame = JSON.stringify(mats) === JSON.stringify(all.map(m => m.material && m.material.uniqueId));
+        $("rst").click();
+        return res;
+      });
+      ok(r4.ctrlOpen && r4.rowSel && r4.focused, "marcador J2 abre Controle, marca e foca o slider existente");
+      ok(r4.hlArm && r4.hlOnlyArm, "destaque contém exatamente as peças do ombro");
+      ok(r4.card.includes("J2") && r4.limit === "NO LIMITE", "cartão mostra J2 e estado NO LIMITE em +70°");
+      ok(r4.focusSelects === "J3" && r4.hlElbow, "focar o slider do cotovelo seleciona J3 no modelo");
+      ok(r4.cleared, "limpar seleção remove o destaque");
+      ok(r4.matsSame, "materiais das malhas inalterados");
+      const g = await page.evaluate(() => {
+        [...document.querySelectorAll("#hotspots .hs")].find(b => b.textContent === "GARRA").click();
+        const hl = sceneRef.effectLayers.find(l => l.name === "atlas-hl");
+        const n = sceneRef.meshes.filter(m => hl.hasMesh(m)).length;
+        document.getElementById("sel-close").click(); $("rst").click(); return n;
+      });
+      ok(g >= 5, "garra destacada (peça instanciada via malha-fonte, sem erro)");
+    }
     return out;
   })();
 } finally {
@@ -278,6 +321,7 @@ if (uxChecks.length) {
   uxChecks.forEach(l => console.log(l));
   if (uxChecks.some(l => l.startsWith("✗"))) diffs.push("ux: verificação de UX falhou");
 }
+if (pageErrors.length) diffs.push(`página: ${pageErrors.length} erro(s) de JavaScript`);
 console.log("\nMOVEMENT REGRESSION TEST\n");
 for (const [name, re] of groups) console.log(`${diffs.some(d => re.test(d)) ? "✗" : "✓"} ${name}`);
 if (diffs.length) {

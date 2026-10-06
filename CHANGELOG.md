@@ -115,3 +115,32 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html` (CSS, HTML do painel Controle + diálogo, script de UI), `tests/movement/run.mjs`, `MOVEMENT_BASELINE.md` (nota §10.1), `CHANGELOG.md`.
+
+## ETAPA 4 — DIGITAL TWIN UX (2026-10-06) — `v4-atlas-twin`
+
+### Alterado
+- **Marcadores** J1 · J2 · J3 · J4 · GARRA sobre o modelo (botões HTML acessíveis), posicionados a cada frame pela projeção da posição absoluta dos TransformNodes existentes (`j_waist`, `j_shoulder`, `j_elbow`, `j_pitch`, média de `j_fingA/j_fingB`). Ocultos fora da tela/atrás da câmera; opção "Mostrar marcadores no modelo" (lembrada em `localStorage`, `atlas_hs`).
+- **Destaque** com `BABYLON.HighlightLayer` ("atlas-hl") nas peças que cada junta move: J1 `Waist:1`; J2 `Arm 01:1`; J3 `Arm 02 v3:1` + `Arm 03:1`; J4 `Gripper base:1`; Garra engrenagens/elos/dedos. `grip link 1:2` é `InstancedMesh` (não suportado pelo HighlightLayer) → destaca-se a malha-fonte `grip link 1:1`, também da garra.
+- **Seleção bidirecional**:
+  - Twin → slider: clique no marcador ou toque (não arraste) na peça → abre CONTROLE, marca a linha, foca o slider EXISTENTE (marcador) e mostra o cartão.
+  - Slider → Twin: focar ou mover um slider seleciona e destaca a junta.
+  - Toque em área vazia, `×` do cartão ou novo clique no marcador limpam a seleção.
+- **Cartão de seleção** (painel Controle): `J2 — OMBRO` · Atual · Limites · Estado (`NORMAL`, `NO LIMITE`, `ALÉM DA FAIXA DO SERVO (±80°)` para cintura/cotovelo com a calibração padrão do firmware; garra `FECHADA`/`ABERTA` nos extremos).
+- **Painel Digital Twin**: botões J1…GARRA para destacar sem sair do painel; linha selecionada realçada na leitura.
+- HighlightLayer com texturas a 1/4 da resolução e **desligado em VR**.
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal idêntico ao baseline. A camada nova não atribui `rotation`, `rotationQuaternion`, `position`, `scaling`, `material`, `parent`, nem usa `setParent`/`setPivotPoint`/`freeze*` (verificado por análise) e não escreve em `S`.
+- Materiais das malhas inalterados (verificado por `uniqueId` antes/depois).
+
+### Testado
+- `npm test`: APROVADO (12/12) + UX: marcador J2 → Controle/linha/foco; destaque contém exatamente as peças do ombro; cartão e estado NO LIMITE; foco no slider do cotovelo seleciona J3; limpar remove destaque; materiais inalterados; garra destacada sem erro.
+- O teste agora **reprova se houver qualquer erro de JavaScript na página** (stack trace registrado).
+- Screenshots: seleção J2 e Garra com glow.
+
+### Regressões
+- Detectada e corrigida: `HighlightLayer.addMesh` lançava erro com a peça instanciada da garra (o handler de UI falhava; o movimento não era afetado porque o `oninput` original roda antes). Corrigido usando a malha-fonte + `try/catch` no destaque.
+- Observação de desempenho (não é regressão de movimento): no Chrome headless com GPU por software, enquanto uma junta está destacada a taxa efetiva medida de publish ficou em 17–19/s contra 19–20/s na v3 (o intervalo agendado continua 50 ms = 20 Hz). Mitigado com texturas a 1/4 e destaque desligado em VR; reavaliar em GPU real na ETAPA 9.
+
+### Arquivos modificados
+- `index.html` (CSS, HTML de marcadores/cartão/seleção, script de UI), `tests/movement/run.mjs`, `CHANGELOG.md`.

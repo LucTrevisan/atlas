@@ -146,6 +146,38 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--atlas-cyan-soft)}
 input[type=range]:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-6px}
 
 /* Aviso persistente de controle real (somente exibição) */
+.hotspots{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.hotspots[hidden]{display:none}
+.atlas-header,.atlas-main,.atlas-bar{position:relative;z-index:1}
+.hs{position:absolute;left:0;top:0;display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 7px 0 5px;
+  border:1px solid var(--atlas-border);background:rgba(2,11,24,.78);color:var(--atlas-cyan-soft);
+  font:700 10.5px var(--atlas-font-mono);letter-spacing:.06em;cursor:pointer;pointer-events:auto;white-space:nowrap;
+  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);will-change:transform}
+.hs::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--atlas-cyan);box-shadow:0 0 6px var(--atlas-cyan)}
+.hs:hover{background:rgba(0,108,255,.35);color:var(--atlas-text)}
+.hs[aria-pressed=true]{background:var(--atlas-cyan);color:var(--atlas-bg);border-color:var(--atlas-cyan)}
+.hs[aria-pressed=true]::before{background:var(--atlas-bg);box-shadow:none}
+.hs[data-off]{visibility:hidden}
+.hs:focus-visible{outline:2px solid var(--atlas-cyan-soft);outline-offset:2px}
+@media (pointer:coarse){.hs{min-height:32px;padding:0 10px 0 8px}}
+
+.joint-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px}
+.joint-picks button{min-width:44px;min-height:36px;padding:0 10px;border:1px solid var(--atlas-border);background:transparent;
+  color:var(--atlas-cyan-soft);font:700 11px var(--atlas-font-mono);letter-spacing:.06em;cursor:pointer}
+.joint-picks button:hover{background:rgba(0,217,255,.08)}
+.joint-picks button[aria-pressed=true]{background:var(--atlas-cyan);color:var(--atlas-bg);border-color:var(--atlas-cyan)}
+.joint-picks button:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+.readout dt.is-sel,.readout dd.is-sel{background:rgba(0,217,255,.08)}
+
+.sel-card{position:relative;margin:0 0 10px;padding:10px 12px;border:1px solid var(--atlas-cyan);
+  background:linear-gradient(180deg,rgba(0,217,255,.10),rgba(0,108,255,.04))}
+.sel-card[hidden]{display:none}
+.sel-card .sel-title{margin:0 0 6px;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-text)}
+.sel-card .sel-title b{color:var(--atlas-cyan);font-family:var(--atlas-font-mono)}
+.sel-card .readout dt,.sel-card .readout dd{padding:4px 0}
+.sel-card .icon-btn{position:absolute;right:4px;top:2px;margin:0;height:32px}
+.r.is-sel{box-shadow:inset 3px 0 0 var(--atlas-cyan);padding-left:10px;margin-left:-10px;background:linear-gradient(90deg,rgba(0,217,255,.08),transparent 70%)}
+
 .live-banner{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;padding:8px 10px;
   border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.10);color:var(--atlas-warning);font-size:11.5px}
 .live-banner[hidden]{display:none}
@@ -218,6 +250,7 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
 <body>
 <canvas id="c"></canvas>
 <div id="ui">
+  <div class="hotspots" id="hotspots" aria-label="Articulações no modelo 3D"></div>
   <header class="atlas-header">
     <div class="brand">
       <div class="brand-mark" aria-label="ATLAS">AT<b>LAS</b></div>
@@ -252,11 +285,22 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
         <section role="tabpanel" id="p-twin" aria-labelledby="t-twin" hidden>
           <p class="lead"><b>Ambiente Virtual</b> ⇄ <b>Digital Twin</b> ⇄ <b>MQTT</b> ⇄ <b>ESP32</b> ⇄ <b>Robô Físico</b></p>
           <h3>Articulações</h3>
+          <div class="joint-picks" id="twin-picks" role="group" aria-label="Selecionar articulação"></div>
           <dl class="readout" id="twin-readout"></dl>
+          <label class="check"><input type="checkbox" id="hs-toggle" checked> Mostrar marcadores no modelo</label>
           <p class="hint">Arraste para orbitar · roda do mouse para aproximar.</p>
         </section>
 
         <section role="tabpanel" id="p-ctrl" aria-labelledby="t-ctrl" hidden>
+          <div class="sel-card" id="sel-card" role="region" aria-live="polite" aria-label="Articulação selecionada" hidden>
+            <div class="sel-title" id="sel-title"></div>
+            <button class="icon-btn" id="sel-close" type="button" aria-label="Limpar seleção" title="Limpar seleção">×</button>
+            <dl class="readout">
+              <dt>Atual</dt><dd id="sel-cur">—</dd>
+              <dt>Limites</dt><dd id="sel-lim">—</dd>
+              <dt>Estado</dt><dd id="sel-state">—</dd>
+            </dl>
+          </div>
           <div class="live-banner" id="ctrl-live" role="alert" hidden>
             <div><b>● Controle real habilitado</b><span>Sliders, Demo, Zerar e hand tracking estão sendo enviados ao robô físico.</span></div>
           </div>
@@ -661,6 +705,7 @@ function tick(dt){
     el("chip-demo").hidden=!dm;
     el("ctrl-live").hidden=!(snd&&con);
     if(typeof inXR!=="undefined"&&inXR&&el("dlg-real").open)el("dlg-real").close();
+    if(hl){const on=!(typeof inXR!=="undefined"&&inXR);if(hl.isEnabled!==on)hl.isEnabled=on} // sem destaque em VR (frame rate do headset)
 
     let ms,mt;
     if(con){ms="ok";mt="● conectado"}
@@ -737,6 +782,114 @@ function tick(dt){
   el("dlg-real-no").onclick=()=>dlg.close();
   el("dlg-real-yes").onclick=()=>{dlg.close();enableReal()};
   dlg.addEventListener("close",()=>sndBox.focus());
+
+  // ----- ETAPA 4: Digital Twin — seleção, marcadores e destaque -----
+  // Somente leitura da cena: posições absolutas dos TransformNodes existentes e
+  // HighlightLayer (camada de renderização). Nenhum material, pivô, parent ou rotação é tocado.
+  const SEG={ // âncora = nó de articulação existente; parts = peças do GLB que essa junta move
+    waist:   {anchor:["j_waist"],         parts:["Waist:1"]},
+    shoulder:{anchor:["j_shoulder"],      parts:["Arm 01:1"]},
+    elbow:   {anchor:["j_elbow"],         parts:["Arm 02 v3:1","Arm 03:1"]},
+    pitch:   {anchor:["j_pitch"],         parts:["Gripper base:1"]},
+    grip:    {anchor:["j_fingA","j_fingB"],parts:["gear2:1","grip link 1:2","Gripper 1:1","gear1:1","grip link 1:1","Gripper 1 (1):1"]}};
+  const PHYS={waist:80,elbow:80}; // faixa física com a calibração padrão do firmware (OFFSET 90, SMIN 10 / SMAX 170)
+  const NAME=Object.fromEntries(JOINTS.map(([k,j,l])=>[k,{tag:j||"GARRA",full:(j?j+" — ":"")+l}]));
+  const hsBox=el("hotspots"), hsBtn={}, pickBtn={};
+  let selected=null, hl=null, twin=null;
+
+  JOINTS.forEach(([k])=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="hs";b.textContent=NAME[k].tag;b.dataset.off="";
+    b.setAttribute("aria-pressed","false");b.setAttribute("aria-label","Selecionar "+NAME[k].full);
+    b.onclick=()=>select(selected===k?null:k,{open:true,focus:selected!==k});
+    hsBox.append(b);hsBtn[k]=b;
+    const p=document.createElement("button");
+    p.type="button";p.textContent=NAME[k].tag;
+    p.setAttribute("aria-pressed","false");p.setAttribute("aria-label","Destacar "+NAME[k].full);
+    p.onclick=()=>select(selected===k?null:k);
+    el("twin-picks").append(p);pickBtn[k]=p;
+    // slider → Digital Twin: focar ou mover o slider seleciona a junta (somente destaque)
+    const i=inputs[k][0];
+    i.addEventListener("focus",()=>{if(selected!==k)select(k)});
+    i.addEventListener("input",()=>{if(selected!==k)select(k);updateSel()});
+  });
+
+  function select(k,{open=false,focus=false}={}){
+    selected=k||null;
+    JOINTS.forEach(([j])=>{
+      const on=j===selected;
+      hsBtn[j].setAttribute("aria-pressed",on);pickBtn[j].setAttribute("aria-pressed",on);
+      inputs[j][0].parentElement.classList.toggle("is-sel",on);
+      twinDD[j].classList.toggle("is-sel",on);twinDD[j].previousElementSibling.classList.toggle("is-sel",on);
+    });
+    if(hl&&twin){try{hl.removeAllMeshes();if(selected)twin.meshes[selected].forEach(m=>hl.addMesh(m,twin.color))}catch(e){console.warn("destaque",e)}}
+    if(selected&&open&&active!=="ctrl")show("ctrl");
+    if(selected&&focus){const i=inputs[selected][0];i.focus({preventScroll:true});i.parentElement.scrollIntoView({block:"nearest"})}
+    updateSel();
+  }
+  function updateSel(){
+    const card=el("sel-card");
+    card.hidden=!selected; if(!selected)return;
+    const k=selected, [, , mn, mx]=J.find(r=>r[0]===k), v=S[k];
+    el("sel-title").innerHTML=NAME[k].full.replace(/^(J\d)/,"<b>$1</b>");
+    set("sel-cur","",fmt(v));
+    set("sel-lim","",k==="grip"?"0 fechada / 30 aberta":`${deg(mn)} / ${deg(mx)}`);
+    if(k==="grip"&&(v<=mn+1e-6||v>=mx-1e-6)) set("sel-state","ok",v<=mn+1e-6?"FECHADA":"ABERTA");
+    else if(v<=mn+1e-6||v>=mx-1e-6)   set("sel-state","warn","NO LIMITE");
+    else if(PHYS[k]&&Math.abs(v)>PHYS[k]) set("sel-state","warn",`ALÉM DA FAIXA DO SERVO (±${PHYS[k]}°)`);
+    else                               set("sel-state","ok","NORMAL");
+  }
+  setInterval(updateSel,250);
+  el("sel-close").onclick=()=>select(null);
+
+  try{if(localStorage.getItem("atlas_hs")==="0")el("hs-toggle").checked=false}catch(e){}
+  hsBox.hidden=!el("hs-toggle").checked;
+  el("hs-toggle").onchange=()=>{hsBox.hidden=!el("hs-toggle").checked;try{localStorage.setItem("atlas_hs",el("hs-toggle").checked?"1":"0")}catch(e){}};
+
+  function initTwin(){
+    const Bb=BABYLON, sc=sceneRef, node=n=>sc.getTransformNodeByName(n);
+    twin={meshes:{},anchors:{},owner:new Map(),color:new Bb.Color3(0,.85,1)};
+    JOINTS.forEach(([k])=>{
+      twin.anchors[k]=SEG[k].anchor.map(node);
+      const ms=SEG[k].parts.flatMap(n=>node(n).getChildMeshes(false).filter(m=>m.getTotalVertices()>0));
+      ms.forEach(m=>twin.owner.set(m,k));
+      // HighlightLayer não aceita InstancedMesh: destaca a malha-fonte (grip link 1:2 → grip link 1:1, ambas da garra)
+      twin.meshes[k]=[...new Set(ms.map(m=>m.sourceMesh||m))];
+    });
+    // texturas a 1/4 da resolução: custo de GPU/thread principal mínimo (o loop de publish MQTT divide a thread com o render)
+    try{hl=new Bb.HighlightLayer("atlas-hl",sc,{mainTextureRatio:.25,blurTextureSizeRatio:.25,blurHorizontalSize:.6,blurVerticalSize:.6});hl.innerGlow=false}
+    catch(e){console.warn("HighlightLayer indisponível",e);hl=null}
+    // Digital Twin → seleção: toque/clique (não arraste) numa peça do braço
+    sc.onPointerObservable.add(pi=>{
+      if(pi.type!==Bb.PointerEventTypes.POINTERTAP||(typeof inXR!=="undefined"&&inXR))return;
+      const m=pi.pickInfo&&pi.pickInfo.hit?pi.pickInfo.pickedMesh:null, k=m&&twin.owner.get(m);
+      if(k)select(k,{open:true});else if(selected)select(null);
+    });
+    // marcadores: projeção da posição absoluta das articulações (somente leitura)
+    const canvas=sc.getEngine().getRenderingCanvas(), tmp=new Bb.Vector3(), last={};
+    let rect=canvas.getBoundingClientRect();
+    window.addEventListener("resize",()=>{rect=canvas.getBoundingClientRect()});
+    sc.onAfterRenderObservable.add(()=>{
+      if(hsBox.hidden||el("ui").style.display==="none")return;
+      const cam=sc.activeCamera, eng=sc.getEngine(); if(!cam)return;
+      const w=eng.getRenderWidth(), h=eng.getRenderHeight(), vp=cam.viewport.toGlobal(w,h), tm=sc.getTransformMatrix();
+      JOINTS.forEach(([k])=>{
+        const a=twin.anchors[k]; tmp.setAll(0);
+        a.forEach(n=>tmp.addInPlace(n.getAbsolutePosition())); tmp.scaleInPlace(1/a.length);
+        const p=Bb.Vector3.Project(tmp,Bb.Matrix.IdentityReadOnly,tm,vp);
+        const vis=p.z>0&&p.z<1&&p.x>=0&&p.x<=w&&p.y>=0&&p.y<=h, b=hsBtn[k];
+        if(vis===("off" in b.dataset)){if(vis)delete b.dataset.off;else b.dataset.off=""}
+        if(!vis)return;
+        const t=`translate(${Math.round(rect.left+p.x/w*rect.width+10)}px,${Math.round(rect.top+p.y/h*rect.height-12)}px)`;
+        if(last[k]!==t){last[k]=t;b.style.transform=t}
+      });
+    });
+    if(selected)select(selected);
+  }
+  const waitTwin=setInterval(()=>{
+    if(typeof pose==="undefined"||!pose||typeof sceneRef==="undefined"||!sceneRef)return;
+    clearInterval(waitTwin);initTwin();
+  },200);
 
   let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
   if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";
