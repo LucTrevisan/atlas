@@ -330,6 +330,10 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
           <div class="joint-picks" id="twin-picks" role="group" aria-label="Selecionar articulação"></div>
           <dl class="readout" id="twin-readout"></dl>
           <label class="check"><input type="checkbox" id="hs-toggle" checked> Mostrar marcadores no modelo</label>
+          <h3>Aparência</h3>
+          <label class="check"><input type="checkbox" id="th-scene" checked> Ambiente Digital Twin (azul-marinho + grade)</label>
+          <label class="check"><input type="checkbox" id="th-robot" checked> Cores do robô físico (vermelho / amarelo)</label>
+          <p class="hint">Desmarque para ver o laboratório e as cores originais do modelo. Só aparência — não afeta o movimento.</p>
           <p class="hint">Arraste para orbitar · roda do mouse para aproximar.</p>
         </section>
 
@@ -1065,11 +1069,67 @@ function tick(dt){
       });
     });
     if(selected)select(selected);
+    sceneTheme.init();
   }
   const waitTwin=setInterval(()=>{
     if(typeof pose==="undefined"||!pose||typeof sceneRef==="undefined"||!sceneRef)return;
     clearInterval(waitTwin);initTwin();
   },200);
+
+  // ----- Cores da cena conforme a referência visual (somente aparência) -----
+  // Altera APENAS cores/brilho de materiais já existentes (mesmos objetos; nenhum material é
+  // trocado) e o fundo/neblina. Guarda os valores originais para poder restaurar.
+  const sceneTheme=(()=>{
+    const C=h=>BABYLON.Color3.FromHexString(h);
+    const ROBOT={"#000ACA":"#D62718","#0039E6":"#D62718","#FFFFFF":"#D62718","#C5CDE6":"#F2B705","#8E9CCA":"#F2B705"}; // azul→vermelho, claro→amarelo (como o robô físico)
+    const near=(c,r,g,b)=>c&&Math.abs(c.r-r)<.02&&Math.abs(c.g-g)<.02&&Math.abs(c.b-b)<.02;
+    let robotMats=[], envOps=[], grid=null, orig=null, ready=false;
+    const keep=(obj,prop)=>{const v=obj[prop];return [obj,prop,v&&v.clone?v.clone():v]};
+    function init(){
+      if(ready)return; ready=true;
+      const sc=sceneRef, stage=sc.getTransformNodeByName("stage"), robot=new Set(stage.getChildMeshes(false));
+      orig=[keep(sc,"clearColor"),keep(sc,"fogColor")];
+      const seen=new Set();
+      robot.forEach(m=>{const mt=m.material;if(!mt||seen.has(mt)||!mt.albedoColor)return;seen.add(mt);
+        const to=ROBOT[mt.albedoColor.toHexString()];if(!to)return;
+        orig.push(keep(mt,"albedoColor"),keep(mt,"metallic"),keep(mt,"roughness"));robotMats.push([mt,to])});
+      const envSeen=new Set(), env=(mt,fn)=>{if(!mt||envSeen.has(mt))return;envSeen.add(mt);
+        ["diffuseColor","emissiveColor","specularColor","emissiveTexture"].forEach(pp=>orig.push(keep(mt,pp)));envOps.push([mt,fn])};
+      sc.meshes.forEach(m=>{
+        if(robot.has(m)||!m.material)return; const mt=m.material, d=mt.diffuseColor, n=m.name;
+        if(n==="floor")env(mt,x=>{x.diffuseColor=C("#0A1C33");x.specularColor=C("#1A3550");x.emissiveColor=C("#000000");x.emissiveTexture=grid});
+        else if(n==="w"&&near(d,.86,.87,.89))env(mt,x=>{x.diffuseColor=C("#0B2440")});
+        else if(n==="w"&&near(d,.06,.16,.42))env(mt,x=>{x.diffuseColor=C("#0050C8");x.emissiveColor=C("#002A66")});
+        else if(n==="w"&&near(d,.1,.11,.13))env(mt,x=>{x.diffuseColor=C("#020B18")});
+        else if(n==="lum")env(mt,x=>{x.emissiveColor=C("#9FEFFF")});
+        else if(n==="win")env(mt,x=>{x.emissiveColor=C("#0A4A8A")});
+        else if(n==="bench"||n==="shelf")env(mt,x=>{x.diffuseColor=C("#24384F")});
+        else if(n==="vise"||n==="cncTop")env(mt,x=>{x.diffuseColor=C("#101C2B")});
+        else if(n==="cnc")env(mt,x=>{x.diffuseColor=C("#0B4FA8")});
+        else if(n==="ped")env(mt,x=>{x.diffuseColor=C("#1A2E47");x.specularColor=C("#335577")});
+      });
+      // grade ciano do piso (textura emissiva: linhas acesas, células escuras), célula de 0,5 m
+      grid=new BABYLON.DynamicTexture("atlas-grid",{width:256,height:256},sc,true);
+      const g=grid.getContext();g.fillStyle="#000";g.fillRect(0,0,256,256);
+      g.strokeStyle="rgba(0,217,255,.55)";g.lineWidth=3;g.strokeRect(0,0,256,256);
+      g.strokeStyle="rgba(0,217,255,.18)";g.lineWidth=1;g.beginPath();g.moveTo(128,0);g.lineTo(128,256);g.moveTo(0,128);g.lineTo(256,128);g.stroke();
+      grid.update();grid.wrapU=grid.wrapV=BABYLON.Texture.WRAP_ADDRESSMODE;grid.uScale=11/0.5;grid.vScale=9/0.5;
+      try{el("th-scene").checked=localStorage.getItem("atlas_th_scene")!=="0";el("th-robot").checked=localStorage.getItem("atlas_th_robot")!=="0"}catch(e){}
+      apply();
+    }
+    function restore(filter){orig.forEach(([o,pp,v])=>{if(filter(o))o[pp]=v&&v.clone?v.clone():v})}
+    function apply(){
+      if(!ready)return;
+      const sc=sceneRef, onScene=el("th-scene").checked, onRobot=el("th-robot").checked;
+      const robotSet=new Set(robotMats.map(([m])=>m)), envSet=new Set(envOps.map(([m])=>m));
+      restore(o=>o===sc||envSet.has(o)||robotSet.has(o));
+      if(onScene){sc.clearColor=new BABYLON.Color4(.008,.043,.094,1);sc.fogColor=C("#061426");envOps.forEach(([m,fn])=>fn(m))}
+      if(onRobot)robotMats.forEach(([m,to])=>{m.albedoColor=C(to).toLinearSpace();m.metallic=0;m.roughness=.6}); // PLA fosco (albedo PBR em espaço linear)
+    }
+    el("th-scene").onchange=()=>{try{localStorage.setItem("atlas_th_scene",el("th-scene").checked?"1":"0")}catch(e){}apply()};
+    el("th-robot").onchange=()=>{try{localStorage.setItem("atlas_th_robot",el("th-robot").checked?"1":"0")}catch(e){}apply()};
+    return {init,apply};
+  })();
 
   // ----- ETAPA 7: painel compacto no headset -----
   // Plano 3D com DynamicTexture (sem biblioteca extra), criado só na primeira entrada em VR

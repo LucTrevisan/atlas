@@ -225,3 +225,20 @@ Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibi�
 
 ### Arquivos modificados
 - `index.html`, `tests/movement/run.mjs`, `CHANGELOG.md`.
+
+## CORES DA CENA conforme imagem de referência (2026-10-06) — `v8b-atlas-cores`
+
+### Alterado
+- **Robô** com as cores do protótipo físico (PLA): peças azuis do modelo → vermelho `#D62718`; peças claras → amarelo `#F2B705`; garra/engrenagens/elos/dedos → vermelho; servos/pés pretos e logo mantidos. Albedo PBR convertido para espaço linear; `metallic 0`, `roughness 0.6` (plástico fosco).
+- **Ambiente Digital Twin**: fundo `#020B18`, neblina `#061426`, piso azul-marinho com **grade ciano** (textura emissiva, célula 0,5 m), paredes azul-marinho com faixa azul, teto escuro, luminárias ciano-claro, CNC azul, bancada/estante em tons de azul-acinzentado, pedestal azul escuro. Banner SENAI e faixas de segurança amarelas mantidos.
+- Painel Digital Twin → **Aparência**: alternar "Ambiente Digital Twin" e "Cores do robô físico" (restaura exatamente as cores originais; lembrado em `localStorage`).
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal idêntico. Somente cores/brilho de materiais **existentes** são alterados (mesmos objetos — `uniqueId` inalterado; nenhum material trocado; geometria, hierarquia e transformações intactas).
+
+### Testado
+- `npm test`: APROVADO + todas as verificações de UX (inclui "materiais das malhas inalterados").
+- Screenshots: tema ATLAS × laboratório/modelo originais.
+
+### Arquivos modificados
+- `index.html`, `CHANGELOG.md`.
