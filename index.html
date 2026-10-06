@@ -5,22 +5,72 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Braço Robótico VR + MQTT</title>
 <style>
-:root{--fg:#1c2230;--panel:rgba(255,255,255,.9);--acc:#e8590c}
-@media (prefers-color-scheme:dark){:root{--fg:#e8ebf0;--panel:rgba(24,29,38,.9)}}
-html,body{height:100%;margin:0;background:#171c26;color:var(--fg);font:13px system-ui,sans-serif;overflow:hidden}
+/* ---------- ATLAS Design Tokens ---------- */
+:root{
+  --atlas-bg:#020B18;
+  --atlas-bg-secondary:#061426;
+  --atlas-panel:#071C32;
+  --atlas-panel-glass:rgba(5,22,42,.88);
+  --atlas-blue:#006CFF;
+  --atlas-blue-bright:#008CFF;
+  --atlas-cyan:#00D9FF;
+  --atlas-cyan-soft:#63E8FF;
+  --atlas-text:#F4FAFF;
+  --atlas-text-secondary:#91AFC5;
+  --atlas-success:#20E6A4;
+  --atlas-warning:#FFB020;
+  --atlas-danger:#FF334F;
+  --atlas-border:rgba(0,217,255,.35);
+  --atlas-border-soft:rgba(0,217,255,.16);
+  --atlas-track:rgba(145,175,197,.22);
+  --atlas-glow:0 0 14px rgba(0,140,255,.35);
+  --atlas-chamfer:14px;
+  --atlas-font:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --atlas-font-mono:"Cascadia Mono",Consolas,ui-monospace,"SF Mono",monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text);font:13px/1.35 var(--atlas-font);overflow:hidden}
 #c{width:100%;height:100%;display:block;outline:none;touch-action:none}
-#ui{position:absolute;left:8px;bottom:8px;width:250px;max-height:92%;overflow:auto;padding:10px 12px;border-radius:12px;background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.3)}
-h1{font-size:13px;margin:0 0 6px}
+#ui{position:absolute;left:8px;bottom:8px;width:250px;max-height:92%;overflow:auto;padding:10px 12px;
+  background:
+    linear-gradient(135deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) top left/18px 18px no-repeat,
+    linear-gradient(-45deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) bottom right/18px 18px no-repeat,
+    linear-gradient(var(--atlas-cyan),var(--atlas-cyan)) top right/28px 1.5px no-repeat,
+    linear-gradient(var(--atlas-cyan),var(--atlas-cyan)) bottom left/28px 1.5px no-repeat,
+    linear-gradient(180deg,rgba(0,108,255,.10),transparent 40%),
+    var(--atlas-panel-glass);
+  border:1px solid var(--atlas-border);
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer));
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  scrollbar-width:thin;scrollbar-color:var(--atlas-border) transparent}
+h1{font-size:13px;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--atlas-border-soft);
+  color:var(--atlas-cyan-soft);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .r{display:grid;grid-template-columns:70px 1fr 36px;align-items:center;gap:6px;margin:3px 0}
-.r output{text-align:right;opacity:.7}
-input[type=range]{width:100%;accent-color:var(--acc)}
-input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0;padding:4px;border-radius:6px;border:1px solid #8886;background:transparent;color:inherit}
+.r span{color:var(--atlas-text-secondary);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.r output{text-align:right;color:var(--atlas-cyan-soft);font:12px var(--atlas-font-mono);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--atlas-cyan);background:transparent;cursor:pointer}
+input[type=checkbox]{accent-color:var(--atlas-blue-bright)}
+input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0;padding:5px 6px;border-radius:2px;
+  border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);color:var(--atlas-text);font:12px var(--atlas-font-mono)}
+input[type=text]::placeholder,input[type=password]::placeholder{color:var(--atlas-text-secondary);opacity:.7}
+input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--atlas-cyan);box-shadow:var(--atlas-glow)}
 .b{display:flex;gap:6px;margin:8px 0}
-button{flex:1;padding:6px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
-button.o{background:transparent;color:var(--fg);border:1px solid currentColor}
-label{display:block;margin:3px 0}
-details{margin-top:6px}summary{cursor:pointer;font-weight:600}
-#st,#mq{font-size:11px;opacity:.85;margin-top:4px;min-height:1.2em}
+button{flex:1;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
+  background:linear-gradient(180deg,var(--atlas-blue-bright),var(--atlas-blue));color:var(--atlas-text);
+  font:600 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+  transition:filter .15s,box-shadow .15s}
+button:hover{filter:brightness(1.15);box-shadow:var(--atlas-glow)}
+button.o{background:transparent;color:var(--atlas-cyan-soft);border:1px solid var(--atlas-border)}
+button.o:hover{background:rgba(0,217,255,.08)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+label{display:block;margin:3px 0;color:var(--atlas-text)}
+details{margin-top:6px;padding-top:6px;border-top:1px solid var(--atlas-border-soft)}
+summary{cursor:pointer;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+summary::marker{color:var(--atlas-cyan)}
+#st,#mq{font-size:11px;margin-top:4px;min-height:1.2em;color:var(--atlas-text-secondary)}
+#mq{font-family:var(--atlas-font-mono)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
