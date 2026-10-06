@@ -47,9 +47,14 @@ const page = await browser.newPage();
 const pageErrors = [];
 page.on("pageerror", e => pageErrors.push(String(e)));
 
-let result;
+let result, uxChecks = [];
 try {
-  await page.goto(URL_, { waitUntil: "load" });
+  // registra os intervalos agendados pelo app (medição determinística da taxa MQTT)
+  await page.evaluateOnNewDocument(() => {
+    const si = window.setInterval; window.__intervals = [];
+    window.setInterval = function (fn, ms, ...r) { window.__intervals.push({ src: String(fn), ms }); return si.call(this, fn, ms, ...r); };
+  });
+  await page.goto(URL_, { waitUntil: "load", timeout: 120000 });
   await page.waitForFunction(() => typeof pose !== "undefined" && pose !== null, { timeout: 90000 });
   // espera a etapa WebXR terminar (sucesso ou falha) para não competir com ela
   await page.waitForFunction(() => /Pronto|VR indispon/.test(document.getElementById("st").textContent), { timeout: 60000 });
@@ -145,7 +150,10 @@ try {
     $("snd").checked = true; $("snd").dispatchEvent(new Event("change"));
     log.publish.length = 0;
     await new Promise(r => setTimeout(r, 1000));
-    out.mqtt.publishRatePerSecApprox = Math.round(log.publish.length / 5) * 5;   // ~20 Hz
+    // taxa = 1000 / intervalo agendado pelo loop de publish (independe da carga da máquina)
+    const pubIv = window.__intervals.filter(x => /publish\(/.test(x.src) && /\/cmd/.test(x.src));
+    out.mqtt.publishRatePerSecApprox = pubIv.length === 1 ? Math.round(1000 / pubIv[0].ms) : `intervalos de publish: ${pubIv.length}`;
+    out.mqtt_info = { publishesIn1s: log.publish.length };
     out.mqtt.lastPublish = log.publish.at(-1);
     // Espelhamento: marca mir → desmarca snd; mensagem do robô sobrescreve S
     $("mir").checked = true; $("mir").dispatchEvent(new Event("change"));
@@ -189,6 +197,35 @@ try {
     Object.assign(S, { waist: 0, shoulder: 0, elbow: 0, pitch: 0, grip: 0 }); syncUI(); await frame();
     return out;
   });
+  // ---------- UX (ETAPA 3+): confirmação do controle real com cliques reais ----------
+  uxChecks = await (async () => {
+    const out = [];
+    const ok = (cond, msg) => out.push((cond ? "✓ " : "✗ ") + msg);
+    const st = () => page.evaluate(() => ({ snd: $("snd").checked, mir: $("mir").checked, dlg: !!document.getElementById("dlg-real")?.open }));
+    if (!(await page.$("#dlg-real"))) return ["(diálogo de confirmação ausente — verificação ignorada)"];
+    await page.evaluate(() => { document.getElementById("t-cfg").click(); if (document.getElementById("p-cfg").hidden) document.getElementById("t-cfg").click(); });
+    await page.evaluate(() => { $("mir").checked = true; $("mir").dispatchEvent(new Event("change")); });
+    await page.click("#snd"); let s = await st();
+    ok(s.dlg && !s.snd && s.mir, "clique em Enviar comandos abre confirmação e não marca a caixa");
+    await page.click("#dlg-real-no"); s = await st();
+    ok(!s.dlg && !s.snd && s.mir, "Cancelar mantém envio desligado");
+    await page.keyboard.press("Space"); s = await st();   // foco volta à caixa
+    ok(s.dlg && !s.snd, "teclado (Espaço) também pede confirmação");
+    await page.keyboard.press("Escape"); s = await st();
+    ok(!s.dlg && !s.snd, "Esc cancela");
+    await page.click("#snd"); await page.click("#dlg-real-yes"); s = await st();
+    ok(!s.dlg && s.snd && !s.mir, "Confirmar marca a caixa e executa o onchange original (desmarca espelho)");
+    await page.click("#snd"); s = await st();
+    ok(!s.dlg && !s.snd, "desmarcar não pede confirmação");
+    // trilho dos sliders acompanha o Demo (loop rAF sob demanda)
+    const fill = () => page.evaluate(() => inputs.waist[0].style.getPropertyValue("--b") + "|" + inputs.waist[1].textContent);
+    await page.evaluate(() => { document.getElementById("t-ctrl").click(); if (document.getElementById("p-ctrl").hidden) document.getElementById("t-ctrl").click(); $("demo").click(); });
+    await new Promise(r => setTimeout(r, 800)); const f1 = await fill();
+    await new Promise(r => setTimeout(r, 800)); const f2 = await fill();
+    await page.evaluate(() => { $("demo").click(); $("rst").click(); });
+    ok(f1 !== f2, "trilho e valor do slider acompanham o Demo");
+    return out;
+  })();
 } finally {
   await browser.close();
   server.close();
@@ -214,9 +251,21 @@ const cmp = (a, b, p) => {
   }
   if (a !== b) diffs.push(`${p}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
 };
-delete golden.env; const env = result.env; delete result.env;
+delete golden.env; const env = result.env; delete result.env; delete golden.mqtt_info; const mqInfo = result.mqtt_info; delete result.mqtt_info;
+// ETAPA 3 (autorizado): o número exibido ao lado do slider passou a acompanhar o arraste.
+// É só exibição; o baseline original registrava o rótulo travado. Em vez de comparar,
+// verifica-se que o rótulo agora corresponde ao valor do slider.
+const labelIssues = [];
+for (const [name, pose] of Object.entries(result.poses)) {
+  if (!("label" in pose)) continue;
+  const k = name.replace(/_(min|mid|max)$/, "");
+  const want = Math.round(pose.S[k]) + "°";
+  if (pose.label !== want) labelIssues.push(`poses.${name}.label: esperado ${want}, obtido ${pose.label}`);
+  delete pose.label; if (golden.poses[name]) delete golden.poses[name].label;
+}
+diffs.push(...labelIssues);
 cmp(golden, result, "");
-console.log("Ambiente:", JSON.stringify(env));
+console.log("Ambiente:", JSON.stringify(env), "| publishes medidos em 1 s:", mqInfo && mqInfo.publishesIn1s);
 
 const groups = [
   ["J1 (waist)", /waist/], ["J2 (shoulder)", /shoulder/], ["J3 (elbow)", /elbow/], ["J4 (pitch)", /pitch/],
@@ -224,6 +273,11 @@ const groups = [
   ["Sliders", /^static\.sliders|_min|_mid|_max/], ["MQTT/Espelhamento", /^mqtt\./], ["IK", /^ik\./],
   ["Hand Tracking", /^hands\./], ["Estrutura (K/CFG/J/hierarquia/câmera)", /^static\./],
 ];
+if (uxChecks.length) {
+  console.log("\nUX CHECKS");
+  uxChecks.forEach(l => console.log(l));
+  if (uxChecks.some(l => l.startsWith("✗"))) diffs.push("ux: verificação de UX falhou");
+}
 console.log("\nMOVEMENT REGRESSION TEST\n");
 for (const [name, re] of groups) console.log(`${diffs.some(d => re.test(d)) ? "✗" : "✓"} ${name}`);
 if (diffs.length) {

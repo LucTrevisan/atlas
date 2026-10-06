@@ -86,3 +86,32 @@
 
 ### Arquivos modificados
 - `index.html` (head/style, HTML do `#ui`, novo `<script>` de UI ao final), `CHANGELOG.md`.
+
+## ETAPA 3 — CONTROLES (2026-10-06) — `v3-atlas-controls`
+
+Decisões autorizadas: (1) número do slider acompanha o arraste (somente exibição); (2) garra mantém a ordem real FECHADA (0) → ABERTA (30); (3) confirmação antes de habilitar o envio ao robô real.
+
+### Alterado
+- **Linhas de junta** sobre os sliders EXISTENTES (mesmos `<input>`, mesmo `oninput`): `J1 BASE · J2 OMBRO · J3 COTOVELO · J4 PUNHO · GARRA`, valor atual em destaque, limites reais lidos de `min/max` (−180°/+180°, −70°/+70°, −120°/+120°, −80°/+80°, Fechada/Aberta).
+- **Trilho** customizado (WebKit/Firefox) preenchido a partir do zero até o valor; thumb ciano com brilho; altura de toque 44 px; colunas de limite fixas (trilhos de mesmo comprimento).
+- **Número exibido** atualiza durante o arraste (listener adicional de exibição, mesmo formato de `syncUI()`: `Math.round(v)+"°"`).
+- **Acessibilidade**: `aria-labelledby` (J + nome) e `aria-valuetext` ("−21 graus"; garra "18 de 30 (0 fechada, 30 aberta)"); `role=group` em `#sl`; `aria-label` em Demo/Zerar; botões e caixas ≥ 44 px.
+- **Reset** agora rotulado "⟲ Zerar" (mesmo botão `#rst`, mesmo handler).
+- **Confirmação de controle real**: diálogo modal (`<dialog>`) ao MARCAR "Enviar comandos ao robô real" — por clique, rótulo ou teclado. Cancelar/Esc mantém desligado; Confirmar marca a caixa e dispara o mesmo `change` de um clique comum (o `onchange` original roda inalterado). Desmarcar nunca pede confirmação. Diálogo fecha se o usuário entrar em VR.
+- **Aviso persistente** "● CONTROLE REAL HABILITADO" no painel Controle enquanto o envio está ativo e o MQTT conectado (lembrando que Demo/Zerar/hand tracking também vão ao robô).
+- Loop rAF de repintura dos trilhos só roda com a aba Controle aberta **e** Demo/espelho/VR ativos (um loop contínuo reduzia a taxa efetiva do `setInterval` de publish no Chrome headless; corrigido e medido: 20/s, igual à v2).
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal byte a byte idêntico ao baseline; nenhum novo caminho escreve em `S`.
+- Valores, limites, passos (0,5) e direção de todos os sliders; ordem da garra.
+
+### Testado
+- `npm test`: APROVADO (12/12) + 7 verificações de UX com cliques reais (confirmação, cancelar, teclado, Esc, confirmar → onchange original, desmarcar sem confirmação, trilho acompanha Demo).
+- Teste ajustado: (a) o rótulo do slider agora é verificado como "igual ao valor do slider" em vez do valor travado do baseline (mudança autorizada); (b) taxa MQTT medida pelo intervalo agendado (determinística) em vez do relógio.
+- Screenshots: painel, diálogo, aviso de controle real, mobile.
+
+### Regressões
+- Detectada e corrigida durante a etapa: queda da taxa efetiva de publish (16–17/s) causada pelo loop rAF contínuo. Após correção: 20/s em 3 medições alternadas v2/v3.
+
+### Arquivos modificados
+- `index.html` (CSS, HTML do painel Controle + diálogo, script de UI), `tests/movement/run.mjs`, `MOVEMENT_BASELINE.md` (nota §10.1), `CHANGELOG.md`.

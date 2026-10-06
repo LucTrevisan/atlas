@@ -274,6 +274,7 @@ O mais próximo de uma parada hoje é: desmarcar "Enviar comandos" ⇒ o site pa
 ## 10. Comportamentos peculiares — PRESERVAR até autorização explícita
 
 1. O rótulo numérico ao lado do slider (`<output>`) **não atualiza** ao arrastar no modo manual — só via `syncUI()` (Demo, VR, espelho, Reset).
+   → **ETAPA 3 (autorizado):** a camada de UI passou a atualizar só a exibição durante o arraste, no mesmo formato de `syncUI()`; `S` e o `oninput` original não mudaram.
 2. Slider da cintura vai a ±180°, mas o servo físico só alcança ±80° (clamp no firmware).
 3. Slider do cotovelo vai a ±120°, servo físico ±80°.
 4. O Demo é enviado ao robô real se "Enviar comandos" estiver marcado.

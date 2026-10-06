@@ -33,7 +33,7 @@ html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text
 #c{width:100%;height:100%;display:block;outline:none;touch-action:none}
 /* ---------- Shell: #ui envolve toda a interface (o app o oculta em VR) ---------- */
 #ui{position:fixed;inset:0;z-index:10;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);pointer-events:none}
-.atlas-header,.atlas-bar,.panel{pointer-events:auto}
+.atlas-header,.atlas-bar,.panel,dialog{pointer-events:auto}
 .xr-button-overlay{z-index:30!important}
 
 /* ---------- Header ---------- */
@@ -119,19 +119,59 @@ ol.steps li{margin:4px 0}
 ol.steps li::marker{color:var(--atlas-cyan);font-family:var(--atlas-font-mono)}
 
 /* ---------- Controles existentes ---------- */
-.r{display:grid;grid-template-columns:84px 1fr 48px;align-items:center;gap:8px;margin:4px 0}
-.r span{color:var(--atlas-text-secondary);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
-.r output{text-align:right;color:var(--atlas-cyan-soft);font:12px var(--atlas-font-mono);font-variant-numeric:tabular-nums}
-input[type=range]{width:100%;accent-color:var(--atlas-cyan);background:transparent;cursor:pointer}
+/* Linha de junta: [J1 BASE ........ 32°] / [−180° ──●── +180°] */
+.r{display:grid;grid-template-columns:50px 1fr 50px;grid-template-areas:"lab lab val" "min rng max";
+  align-items:center;column-gap:10px;row-gap:0;margin:0;padding:8px 0 4px;border-bottom:1px solid var(--atlas-border-soft)}
+.r:last-child{border-bottom:0}
+.r span{grid-area:lab;color:var(--atlas-text);font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.r span b{display:inline-block;min-width:22px;margin-right:6px;color:var(--atlas-cyan);font:700 11.5px var(--atlas-font-mono)}
+.r output{grid-area:val;text-align:right;color:var(--atlas-cyan-soft);font:600 15px var(--atlas-font-mono);font-variant-numeric:tabular-nums}
+.r input{grid-area:rng}
+.r .lim{font:10px var(--atlas-font-mono);color:var(--atlas-text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.r .lim-min{grid-area:min}.r .lim-max{grid-area:max;text-align:right}
+.r .lim{overflow:hidden;text-overflow:clip}
+.r.is-grip .lim{font-family:var(--atlas-font);font-weight:600;letter-spacing:.08em}
+
+input[type=range]{--a:0%;--b:0%;width:100%;height:44px;margin:0;padding:0;background:transparent;cursor:pointer;
+  -webkit-appearance:none;appearance:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--atlas-track) 0 var(--a),var(--atlas-cyan) var(--a) var(--b),var(--atlas-track) var(--b) 100%)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--atlas-track) 0 var(--a),var(--atlas-cyan) var(--a) var(--b),var(--atlas-track) var(--b) 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;
+  background:var(--atlas-bg);border:2px solid var(--atlas-cyan);box-shadow:0 0 0 3px rgba(0,217,255,.15),var(--atlas-glow)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+  background:var(--atlas-bg);border:2px solid var(--atlas-cyan);box-shadow:0 0 0 3px rgba(0,217,255,.15),var(--atlas-glow)}
+input[type=range]:hover::-webkit-slider-thumb{background:var(--atlas-cyan-soft)}
+input[type=range]:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-6px}
+
+/* Aviso persistente de controle real (somente exibição) */
+.live-banner{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;padding:8px 10px;
+  border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.10);color:var(--atlas-warning);font-size:11.5px}
+.live-banner[hidden]{display:none}
+.live-banner b{display:block;letter-spacing:.08em;text-transform:uppercase}
+.live-banner span{color:var(--atlas-text)}
+
+/* Diálogo de confirmação */
+dialog.atlas-dialog{max-width:min(420px,calc(100vw - 32px));padding:0;border:1px solid rgba(255,51,79,.6);color:var(--atlas-text);
+  background:linear-gradient(180deg,rgba(255,51,79,.10),transparent 35%),var(--atlas-panel);
+  clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer))}
+dialog.atlas-dialog::backdrop{background:rgba(2,11,24,.72);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.atlas-dialog .dlg-body{padding:16px 18px 6px}
+.atlas-dialog h2{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-danger)}
+.atlas-dialog p{margin:0 0 8px;font-size:12.5px;line-height:1.5}
+.atlas-dialog ul{margin:0 0 8px;padding-left:18px;font-size:12px;color:var(--atlas-text-secondary)}
+.atlas-dialog .b{padding:0 18px 16px;margin:6px 0 0}
+.b button.danger{background:linear-gradient(180deg,#ff4d66,var(--atlas-danger));border-color:var(--atlas-danger)}
 input[type=checkbox]{accent-color:var(--atlas-blue-bright);width:16px;height:16px;margin:0 8px 0 0;vertical-align:-3px}
 input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 8px;border-radius:2px;
   border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);color:var(--atlas-text);font:12px var(--atlas-font-mono)}
 input[type=text]::placeholder,input[type=password]::placeholder{color:var(--atlas-text-secondary);opacity:.7}
 input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--atlas-cyan);box-shadow:var(--atlas-glow)}
 .field{display:block;margin:0;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--atlas-text-secondary)}
-.check{display:flex;align-items:center;min-height:32px;margin:2px 0;color:var(--atlas-text);cursor:pointer}
+.check{display:flex;align-items:center;min-height:44px;margin:2px 0;color:var(--atlas-text);cursor:pointer}
 .b{display:flex;gap:6px;margin:10px 0}
-.b button{flex:1;min-height:36px;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
+.b button{flex:1;min-height:44px;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
   background:linear-gradient(180deg,var(--atlas-blue-bright),var(--atlas-blue));color:var(--atlas-text);
   font:600 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
   clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
@@ -168,7 +208,7 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
   .chip{padding:3px 6px;font-size:9.5px;gap:4px}
   .chips{gap:4px}
   .atlas-main{padding:0}
-  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:52vh;
+  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:46vh;
     clip-path:polygon(var(--atlas-chamfer) 0,calc(100% - var(--atlas-chamfer)) 0,100% var(--atlas-chamfer),100% 100%,0 100%,0 var(--atlas-chamfer))}
   .atlas-bar{padding:0 12px}
 }
@@ -217,9 +257,13 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
         </section>
 
         <section role="tabpanel" id="p-ctrl" aria-labelledby="t-ctrl" hidden>
+          <div class="live-banner" id="ctrl-live" role="alert" hidden>
+            <div><b>● Controle real habilitado</b><span>Sliders, Demo, Zerar e hand tracking estão sendo enviados ao robô físico.</span></div>
+          </div>
           <h3>Controle do braço</h3>
-          <div id="sl"></div>
-          <div class="b"><button id="demo">▶ Demo</button><button id="rst" class="o">Reset</button></div>
+          <div id="sl" role="group" aria-label="Articulações do braço"></div>
+          <div class="b"><button id="demo" aria-label="Demonstração automática (iniciar/parar)">▶ Demo</button><button id="rst" class="o" aria-label="Zerar todas as articulações (Reset)">⟲ Zerar</button></div>
+          <p class="hint">Demo: movimento contínuo de demonstração — para ao mover um slider.</p>
         </section>
 
         <section role="tabpanel" id="p-tele" aria-labelledby="t-tele" hidden>
@@ -273,6 +317,22 @@ input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(
       </div>
     </aside>
   </main>
+
+  <dialog class="atlas-dialog" id="dlg-real" aria-labelledby="dlg-real-t" aria-describedby="dlg-real-d">
+    <div class="dlg-body">
+      <h2 id="dlg-real-t">⚠ Habilitar controle real?</h2>
+      <p id="dlg-real-d">O Digital Twin passará a comandar o <b>robô físico</b> via MQTT (20 comandos/s).</p>
+      <ul>
+        <li>Sliders, Demo, Zerar e hand tracking movem o braço real.</li>
+        <li>Verifique se a área de trabalho do braço está livre.</li>
+        <li>Para interromper o envio, desmarque “Enviar comandos”.</li>
+      </ul>
+    </div>
+    <div class="b">
+      <button class="o" id="dlg-real-no" type="button">Cancelar</button>
+      <button class="danger" id="dlg-real-yes" type="button">Habilitar controle real</button>
+    </div>
+  </dialog>
 
   <footer class="atlas-bar">
     <div id="st">Carregando modelo…</div>
@@ -599,6 +659,8 @@ function tick(dt){
     else if(mir&&con) chip("chip-mode","info","● Espelhando robô real");
     else              chip("chip-mode","info","● Simulação");
     el("chip-demo").hidden=!dm;
+    el("ctrl-live").hidden=!(snd&&con);
+    if(typeof inXR!=="undefined"&&inXR&&el("dlg-real").open)el("dlg-real").close();
 
     let ms,mt;
     if(con){ms="ok";mt="● conectado"}
@@ -620,6 +682,61 @@ function tick(dt){
     }
   }
   setInterval(refresh,250);
+
+  // ----- ETAPA 3: controles — camada visual sobre os sliders EXISTENTES -----
+  // Os <input range> continuam sendo os criados pelo script principal, com o mesmo oninput
+  // (que escreve em S). Aqui só se acrescentam rótulos, limites, preenchimento do trilho
+  // e a atualização do número exibido (mesmo formato de syncUI).
+  const LIM_TXT={grip:["Fechada","Aberta"]};
+  const deg=v=>(v>0?"+":v<0?"−":"")+Math.abs(v)+"°";
+  const painted={};
+  function paint(k){
+    const i=inputs[k][0], v=+i.value;
+    if(painted[k]===v)return; painted[k]=v;
+    const mn=+i.min, mx=+i.max, z=Math.min(Math.max(-mn/(mx-mn),0),1), p=(v-mn)/(mx-mn);
+    const at=f=>`calc(9px + (100% - 18px) * ${f.toFixed(4)})`;
+    i.style.setProperty("--a",at(Math.min(z,p)));i.style.setProperty("--b",at(Math.max(z,p)));
+    i.setAttribute("aria-valuetext",k==="grip"?`${Math.round(v)} de 30 (0 fechada, 30 aberta)`:`${Math.round(v)} graus`);
+  }
+  JOINTS.forEach(([k,j,l])=>{
+    const [i,o]=inputs[k], row=i.parentElement, lab=row.querySelector("span");
+    lab.innerHTML=(j?`<b>${j}</b>`:"")+l; lab.id="lbl-"+k;
+    i.setAttribute("aria-labelledby",lab.id);
+    o.setAttribute("aria-hidden","true");
+    if(k==="grip")row.classList.add("is-grip");
+    const [tMin,tMax]=LIM_TXT[k]||[deg(+i.min),deg(+i.max)];
+    const mk=(c,t)=>{const s=document.createElement("small");s.className="lim "+c;s.textContent=t;s.setAttribute("aria-hidden","true");return s};
+    row.append(mk("lim-min",tMin),mk("lim-max",tMax));
+    i.addEventListener("input",()=>{o.textContent=Math.round(+i.value)+"°";paint(k)});
+    paint(k);
+  });
+  // Demo / espelho / VR atualizam os sliders via syncUI() sem evento "input": só nesses
+  // casos (e com a aba Controle aberta) um loop rAF repinta o trilho; fora deles, nada roda.
+  let painting=false;
+  const needPaint=()=>active==="ctrl"&&((typeof demo!=="undefined"&&demo)||(typeof mode!=="undefined"&&mode==="mirror")||(typeof inXR!=="undefined"&&inXR));
+  function paintLoop(){
+    JOINTS.forEach(([k])=>paint(k));
+    if(needPaint())requestAnimationFrame(paintLoop);else painting=false;
+  }
+  const kickPaint=()=>{JOINTS.forEach(([k])=>paint(k));if(!painting&&needPaint()){painting=true;requestAnimationFrame(paintLoop)}};
+  setInterval(kickPaint,250);
+  el("demo").addEventListener("click",()=>setTimeout(kickPaint));
+  el("rst").addEventListener("click",()=>setTimeout(kickPaint));
+
+  // ----- Confirmação antes de habilitar "Enviar comandos ao robô real" -----
+  // Intercepta apenas o clique que MARCA a caixa. Ao confirmar, marca e dispara o mesmo
+  // evento "change" de um clique comum → o onchange original roda sem alteração.
+  const sndBox=el("snd"), dlg=el("dlg-real");
+  const enableReal=()=>{sndBox.checked=true;sndBox.dispatchEvent(new Event("change",{bubbles:true}));refresh()};
+  sndBox.addEventListener("click",e=>{
+    if(!sndBox.checked)return;            // desmarcar (parar envio) nunca pede confirmação
+    e.preventDefault();                   // desfaz a marcação; nenhum "change" é emitido
+    if(typeof dlg.showModal==="function"){dlg.showModal();el("dlg-real-no").focus()}
+    else if(confirm("Habilitar controle real? O Digital Twin passará a comandar o robô físico."))enableReal();
+  });
+  el("dlg-real-no").onclick=()=>dlg.close();
+  el("dlg-real-yes").onclick=()=>{dlg.close();enableReal()};
+  dlg.addEventListener("close",()=>sndBox.focus());
 
   let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
   if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";
