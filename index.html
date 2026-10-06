@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Braço Robótico VR + MQTT</title>
+<title>ATLAS — Robotic Digital Twin</title>
 <style>
 /* ---------- ATLAS Design Tokens ---------- */
 :root{
@@ -31,7 +31,49 @@
 }
 html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text);font:13px/1.35 var(--atlas-font);overflow:hidden}
 #c{width:100%;height:100%;display:block;outline:none;touch-action:none}
-#ui{position:absolute;left:8px;bottom:8px;width:250px;max-height:92%;overflow:auto;padding:10px 12px;
+/* ---------- Shell: #ui envolve toda a interface (o app o oculta em VR) ---------- */
+#ui{position:fixed;inset:0;z-index:10;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);pointer-events:none}
+.atlas-header,.atlas-bar,.panel{pointer-events:auto}
+.xr-button-overlay{z-index:30!important}
+
+/* ---------- Header ---------- */
+.atlas-header{display:flex;align-items:center;gap:18px;min-width:0;min-height:56px;padding:0 16px;
+  background:linear-gradient(180deg,rgba(2,11,24,.96),rgba(6,20,38,.90));
+  border-bottom:1px solid var(--atlas-border);box-shadow:0 1px 0 rgba(0,217,255,.08),0 6px 18px rgba(0,0,0,.35)}
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.brand-mark{font-size:22px;font-weight:800;letter-spacing:.24em;color:var(--atlas-text);
+  padding-right:12px;border-right:1px solid var(--atlas-border)}
+.brand-mark b{color:var(--atlas-cyan);font-weight:800}
+.brand-sub{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+.brand-stack{font-size:10px;letter-spacing:.06em;color:var(--atlas-text-secondary)}
+
+.tabs{display:flex;align-self:stretch;gap:2px;min-width:0;margin-left:auto}
+.tab{min-height:44px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;
+  color:var(--atlas-text-secondary);font:700 11px var(--atlas-font);letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s,background .15s}
+.tab:hover{color:var(--atlas-text);background:rgba(0,217,255,.05)}
+.tab[aria-selected=true]{color:var(--atlas-cyan);border-bottom-color:var(--atlas-cyan);
+  background:linear-gradient(0deg,rgba(0,217,255,.12),transparent 70%)}
+.tab:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+
+.chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--atlas-border-soft);
+  background:rgba(6,20,38,.8);color:var(--atlas-text-secondary);font:600 10.5px var(--atlas-font-mono);
+  letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.chip .k{color:var(--atlas-text-secondary)}
+.chip .v{color:var(--chip-c,var(--atlas-text-secondary))}
+.chip[data-s=ok]{--chip-c:var(--atlas-success);border-color:rgba(32,230,164,.45)}
+.chip[data-s=info]{--chip-c:var(--atlas-cyan);border-color:var(--atlas-border)}
+.chip[data-s=warn]{--chip-c:var(--atlas-warning);border-color:rgba(255,176,32,.5)}
+.chip[data-s=live]{--chip-c:#1a1000;background:var(--atlas-warning);border-color:var(--atlas-warning)}
+.chip[data-s=live] .k{color:#1a1000}
+.chip[data-s=danger]{--chip-c:var(--atlas-danger);border-color:rgba(255,51,79,.6)}
+.chip[hidden]{display:none}
+
+/* ---------- Área principal: Digital Twin livre + um painel contextual ---------- */
+.atlas-main{position:relative;min-height:0;padding:12px}
+.panel{position:absolute;left:12px;top:12px;width:340px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);box-sizing:border-box;
+  display:flex;flex-direction:column;
   background:
     linear-gradient(135deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) top left/18px 18px no-repeat,
     linear-gradient(-45deg,transparent 9.4px,var(--atlas-cyan) 9.4px 11px,transparent 11px) bottom right/18px 18px no-repeat,
@@ -41,55 +83,201 @@ html,body{height:100%;margin:0;background:var(--atlas-bg);color:var(--atlas-text
     var(--atlas-panel-glass);
   border:1px solid var(--atlas-border);
   clip-path:polygon(var(--atlas-chamfer) 0,100% 0,100% calc(100% - var(--atlas-chamfer)),calc(100% - var(--atlas-chamfer)) 100%,0 100%,0 var(--atlas-chamfer));
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.panel[hidden]{display:none}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;
+  border-bottom:1px solid var(--atlas-border-soft)}
+.panel-head h2{margin:0;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
+.panel-body{flex:1;min-height:0;overflow:auto;padding:10px 14px 14px;
   scrollbar-width:thin;scrollbar-color:var(--atlas-border) transparent}
-h1{font-size:13px;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--atlas-border-soft);
-  color:var(--atlas-cyan-soft);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
-.r{display:grid;grid-template-columns:70px 1fr 36px;align-items:center;gap:6px;margin:3px 0}
+.icon-btn{width:44px;height:36px;margin-right:-8px;border:0;background:transparent;color:var(--atlas-text-secondary);
+  font-size:20px;line-height:1;cursor:pointer}
+.icon-btn:hover{color:var(--atlas-cyan)}
+.icon-btn:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:-2px}
+section[role=tabpanel][hidden]{display:none}
+h3{margin:14px 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+h3:first-child{margin-top:0}
+.lead{margin:0 0 10px;font-size:11px;color:var(--atlas-text-secondary)}
+.lead b{color:var(--atlas-cyan-soft);font-weight:600}
+.hint{margin:10px 0 0;font-size:11px;color:var(--atlas-text-secondary)}
+.badge{display:inline-block;padding:2px 6px;border:1px solid var(--atlas-border);font:600 10px var(--atlas-font-mono);
+  letter-spacing:.08em;color:var(--atlas-cyan-soft)}
+.badge[data-s=warn]{border-color:rgba(255,176,32,.5);color:var(--atlas-warning)}
+
+/* Leituras (somente exibição) */
+.readout{margin:0;display:grid;grid-template-columns:1fr auto;gap:0}
+.readout dt,.readout dd{margin:0;padding:6px 0;border-bottom:1px solid var(--atlas-border-soft)}
+.readout dt{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.readout dt b{color:var(--atlas-cyan);font-weight:700;margin-right:6px}
+.readout dd{text-align:right;font:13px var(--atlas-font-mono);font-variant-numeric:tabular-nums;color:var(--atlas-text)}
+.readout dd[data-s=ok]{color:var(--atlas-success)}
+.readout dd[data-s=warn]{color:var(--atlas-warning)}
+.readout dd[data-s=danger]{color:var(--atlas-danger)}
+.readout dd[data-s=off]{color:var(--atlas-text-secondary)}
+ol.steps{margin:0;padding-left:18px;color:var(--atlas-text)}
+ol.steps li{margin:4px 0}
+ol.steps li::marker{color:var(--atlas-cyan);font-family:var(--atlas-font-mono)}
+
+/* ---------- Controles existentes ---------- */
+.r{display:grid;grid-template-columns:84px 1fr 48px;align-items:center;gap:8px;margin:4px 0}
 .r span{color:var(--atlas-text-secondary);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .r output{text-align:right;color:var(--atlas-cyan-soft);font:12px var(--atlas-font-mono);font-variant-numeric:tabular-nums}
 input[type=range]{width:100%;accent-color:var(--atlas-cyan);background:transparent;cursor:pointer}
-input[type=checkbox]{accent-color:var(--atlas-blue-bright)}
-input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0;padding:5px 6px;border-radius:2px;
+input[type=checkbox]{accent-color:var(--atlas-blue-bright);width:16px;height:16px;margin:0 8px 0 0;vertical-align:-3px}
+input[type=text],input[type=password]{width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 8px;border-radius:2px;
   border:1px solid var(--atlas-border-soft);background:var(--atlas-bg-secondary);color:var(--atlas-text);font:12px var(--atlas-font-mono)}
 input[type=text]::placeholder,input[type=password]::placeholder{color:var(--atlas-text-secondary);opacity:.7}
 input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--atlas-cyan);box-shadow:var(--atlas-glow)}
-.b{display:flex;gap:6px;margin:8px 0}
-button{flex:1;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
+.field{display:block;margin:0;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--atlas-text-secondary)}
+.check{display:flex;align-items:center;min-height:32px;margin:2px 0;color:var(--atlas-text);cursor:pointer}
+.b{display:flex;gap:6px;margin:10px 0}
+.b button{flex:1;min-height:36px;padding:6px;border:1px solid var(--atlas-blue-bright);border-radius:2px;
   background:linear-gradient(180deg,var(--atlas-blue-bright),var(--atlas-blue));color:var(--atlas-text);
   font:600 12px var(--atlas-font);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
   clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
   transition:filter .15s,box-shadow .15s}
-button:hover{filter:brightness(1.15);box-shadow:var(--atlas-glow)}
-button.o{background:transparent;color:var(--atlas-cyan-soft);border:1px solid var(--atlas-border)}
-button.o:hover{background:rgba(0,217,255,.08)}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
-label{display:block;margin:3px 0;color:var(--atlas-text)}
-details{margin-top:6px;padding-top:6px;border-top:1px solid var(--atlas-border-soft)}
-summary{cursor:pointer;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--atlas-cyan-soft)}
-summary::marker{color:var(--atlas-cyan)}
-#st,#mq{font-size:11px;margin-top:4px;min-height:1.2em;color:var(--atlas-text-secondary)}
-#mq{font-family:var(--atlas-font-mono)}
+.b button:hover{filter:brightness(1.15);box-shadow:var(--atlas-glow)}
+.b button.o{background:transparent;color:var(--atlas-cyan-soft);border:1px solid var(--atlas-border)}
+.b button.o:hover{background:rgba(0,217,255,.08)}
+.b button:focus-visible,input:focus-visible{outline:2px solid var(--atlas-cyan);outline-offset:2px}
+#mq{font:11px var(--atlas-font-mono);min-height:1.2em;color:var(--atlas-text-secondary)}
+
+/* ---------- Barra inferior ---------- */
+.atlas-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:30px;padding:0 16px;
+  background:rgba(2,11,24,.92);border-top:1px solid var(--atlas-border-soft)}
+#st{font-size:11px;color:var(--atlas-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chain{font:10.5px var(--atlas-font-mono);letter-spacing:.04em;color:var(--atlas-text-secondary);white-space:nowrap}
+.chain b{color:var(--atlas-cyan-soft);font-weight:600}
+
+/* ---------- Tablet ---------- */
+@media (max-width:1180px){
+  .brand-stack{display:none}
+  .tab{padding:0 9px;letter-spacing:.08em}
+  .chain{display:none}
+}
+@media (max-width:980px){
+  .atlas-header{flex-wrap:wrap;gap:4px 12px;padding:6px 12px 0}
+  .chips{margin-left:auto}
+  .tabs{order:3;flex-basis:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}
+  .panel{width:320px}
+}
+/* ---------- Mobile: Digital Twin dominante, painel como bottom sheet ---------- */
+@media (max-width:640px){
+  .brand-sub{display:none}
+  .brand-mark{font-size:18px;border-right:0;padding-right:0}
+  .chip{padding:3px 6px;font-size:9.5px;gap:4px}
+  .chips{gap:4px}
+  .atlas-main{padding:0}
+  .panel{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:52vh;
+    clip-path:polygon(var(--atlas-chamfer) 0,calc(100% - var(--atlas-chamfer)) 0,100% var(--atlas-chamfer),100% 100%,0 100%,0 var(--atlas-chamfer))}
+  .atlas-bar{padding:0 12px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="ui">
-  <h1>🦾 Braço Robótico</h1>
-  <div id="sl"></div>
-  <div class="b"><button id="demo">▶ Demo</button><button id="rst" class="o">Reset</button></div>
-  <details><summary>MQTT / ESP32</summary>
-    <input id="url" type="text" placeholder="wss://broker:8884/mqtt">
-    <input id="usr" type="text" placeholder="usuário">
-    <input id="pwd" type="password" placeholder="senha">
-    <input id="pfx" type="text" placeholder="prefixo do tópico (ex: braco)" value="braco">
-    <label><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
-    <label><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
-    <div class="b"><button id="con">Conectar</button></div>
-    <div id="mq">desconectado</div>
-  </details>
-  <div id="st">Carregando modelo…</div>
+  <header class="atlas-header">
+    <div class="brand">
+      <div class="brand-mark" aria-label="ATLAS">AT<b>LAS</b></div>
+      <div>
+        <div class="brand-sub">Robotic Digital Twin</div>
+        <div class="brand-stack">Babylon.js · WebXR · MQTT · ESP32</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Navegação principal">
+      <button class="tab" role="tab" id="t-twin" aria-controls="p-twin" data-tab="twin">Digital Twin</button>
+      <button class="tab" role="tab" id="t-ctrl" aria-controls="p-ctrl" data-tab="ctrl">Controle</button>
+      <button class="tab" role="tab" id="t-tele" aria-controls="p-tele" data-tab="tele">Telemetria</button>
+      <button class="tab" role="tab" id="t-xr"   aria-controls="p-xr"   data-tab="xr">WebXR</button>
+      <button class="tab" role="tab" id="t-cfg"  aria-controls="p-cfg"  data-tab="cfg">Configurações</button>
+    </nav>
+    <div class="chips" role="status" aria-live="polite" aria-label="Estado do sistema">
+      <span class="chip" id="chip-mode" data-s="info"><span class="v">● Simulação</span></span>
+      <span class="chip" id="chip-demo" data-s="info" hidden><span class="v">▶ Demo</span></span>
+      <span class="chip" id="chip-mqtt" data-s="off"><span class="k">MQTT</span><span class="v">○ offline</span></span>
+      <span class="chip" id="chip-esp"  data-s="off"><span class="k">ESP32</span><span class="v">○ sem telemetria</span></span>
+    </div>
+  </header>
+
+  <main class="atlas-main">
+    <aside class="panel" id="panel" aria-labelledby="panel-title">
+      <div class="panel-head">
+        <h2 id="panel-title">Controle</h2>
+        <button class="icon-btn" id="panel-close" type="button" aria-label="Recolher painel" title="Recolher painel (Esc)">×</button>
+      </div>
+      <div class="panel-body">
+
+        <section role="tabpanel" id="p-twin" aria-labelledby="t-twin" hidden>
+          <p class="lead"><b>Ambiente Virtual</b> ⇄ <b>Digital Twin</b> ⇄ <b>MQTT</b> ⇄ <b>ESP32</b> ⇄ <b>Robô Físico</b></p>
+          <h3>Articulações</h3>
+          <dl class="readout" id="twin-readout"></dl>
+          <p class="hint">Arraste para orbitar · roda do mouse para aproximar.</p>
+        </section>
+
+        <section role="tabpanel" id="p-ctrl" aria-labelledby="t-ctrl" hidden>
+          <h3>Controle do braço</h3>
+          <div id="sl"></div>
+          <div class="b"><button id="demo">▶ Demo</button><button id="rst" class="o">Reset</button></div>
+        </section>
+
+        <section role="tabpanel" id="p-tele" aria-labelledby="t-tele" hidden>
+          <h3>Conexão</h3>
+          <dl class="readout">
+            <dt>MQTT</dt><dd id="tele-mqtt" data-s="off">offline</dd>
+            <dt>ESP32</dt><dd id="tele-esp" data-s="off">sem telemetria</dd>
+            <dt>Envio ao robô</dt><dd id="tele-snd" data-s="off">desligado</dd>
+          </dl>
+          <h3>Ângulos <span class="badge" id="tele-src">Dados simulados</span></h3>
+          <dl class="readout" id="tele-readout"></dl>
+          <h3>Rede</h3>
+          <dl class="readout">
+            <dt>Latência</dt><dd data-s="off">não medida</dd>
+            <dt>Último pacote</dt><dd data-s="off">não medido</dd>
+          </dl>
+        </section>
+
+        <section role="tabpanel" id="p-xr" aria-labelledby="t-xr" hidden>
+          <h3>Disponibilidade</h3>
+          <dl class="readout">
+            <dt>Contexto seguro (HTTPS)</dt><dd id="xr-secure">—</dd>
+            <dt>API WebXR no navegador</dt><dd id="xr-api">—</dd>
+          </dl>
+          <h3>Como usar (hand tracking)</h3>
+          <ol class="steps">
+            <li>Ative <b>Enviar comandos</b> em Configurações antes de colocar o headset (se for comandar o robô real).</li>
+            <li>Entre em VR pelo botão 🥽 no canto inferior direito.</li>
+            <li><b>Mão esquerda:</b> faça a pinça (polegar + indicador) para habilitar o movimento. Solte para parar.</li>
+            <li><b>Mão direita:</b> posiciona o pulso do robô; a abertura entre polegar e indicador controla a garra.</li>
+          </ol>
+          <p class="hint">No Quest: Configurações → Movimento e controladores → Rastreamento de mãos ligado.</p>
+        </section>
+
+        <section role="tabpanel" id="p-cfg" aria-labelledby="t-cfg" hidden>
+          <h3>MQTT / ESP32</h3>
+          <label class="field" for="url">Broker (WebSocket seguro)</label>
+          <input id="url" type="text" placeholder="wss://broker:8884/mqtt" autocomplete="off">
+          <label class="field" for="usr">Usuário</label>
+          <input id="usr" type="text" placeholder="usuário" autocomplete="username">
+          <label class="field" for="pwd">Senha</label>
+          <input id="pwd" type="password" placeholder="senha" autocomplete="current-password">
+          <label class="field" for="pfx">Prefixo do tópico</label>
+          <input id="pfx" type="text" placeholder="prefixo do tópico (ex: braco)" value="braco">
+          <label class="check"><input id="snd" type="checkbox"> Enviar comandos ao robô real</label>
+          <label class="check"><input id="mir" type="checkbox"> Espelhar estado do robô real</label>
+          <div class="b"><button id="con">Conectar</button></div>
+          <div id="mq">desconectado</div>
+        </section>
+
+      </div>
+    </aside>
+  </main>
+
+  <footer class="atlas-bar">
+    <div id="st">Carregando modelo…</div>
+    <div class="chain"><b>Virtual</b> ⇄ <b>Twin</b> ⇄ MQTT ⇄ ESP32 ⇄ Robô físico</div>
+  </footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.30.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.30.0/babylonjs.loaders.min.js"></script>
@@ -344,6 +532,98 @@ function tick(dt){
     say("✔ Pronto. Botão 🥽 para VR. Em VR: mão direita move o robô; PINÇA da mão esquerda = habilita.");
   }catch(e){say("⚠️ VR indisponível (precisa de HTTPS + navegador WebXR). A pré-visualização 3D funciona.")}
  }catch(err){console.error(err);say("❌ Erro: "+(err.message||err))}
+})();
+</script>
+<script>
+// ---------- ATLAS UI shell (ETAPA 2) ----------
+// Somente apresentação: navegação por abas e leitura do estado existente
+// (S, mode, demo, mq, #snd, #mir, #mq). Nada aqui escreve em S nem chama a cinemática.
+(()=>{
+  const el=id=>document.getElementById(id);
+  const TABS=["twin","ctrl","tele","xr","cfg"];
+  const JOINTS=[["waist","J1","Base"],["shoulder","J2","Ombro"],["elbow","J3","Cotovelo"],["pitch","J4","Punho"],["grip","","Garra"]];
+  const panel=el("panel"), title=el("panel-title");
+  let active=null;
+
+  // ----- Abas: um único painel contextual por vez -----
+  function show(tab,focus){
+    active=tab;
+    panel.hidden=!tab;
+    TABS.forEach(t=>{
+      const b=el("t-"+t), on=t===tab;
+      b.setAttribute("aria-selected",on?"true":"false");
+      b.tabIndex=on||(!tab&&t==="twin")?0:-1;
+      el("p-"+t).hidden=!on;
+    });
+    if(tab){title.textContent=el("t-"+tab).textContent;if(focus)el("t-"+tab).focus()}
+    try{localStorage.setItem("atlas_tab",tab||"")}catch(e){}
+    refresh();
+  }
+  TABS.forEach((t,i)=>{
+    const b=el("t-"+t);
+    b.onclick=()=>show(active===t?null:t);
+    b.onkeydown=e=>{
+      const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;
+      if(d){e.preventDefault();show(TABS[(i+d+TABS.length)%TABS.length],true)}
+      else if(e.key==="Home"){e.preventDefault();show(TABS[0],true)}
+      else if(e.key==="End"){e.preventDefault();show(TABS[TABS.length-1],true)}
+    };
+  });
+  el("panel-close").onclick=()=>{const t=active;show(null);if(t)el("t-"+t).focus()};
+  panel.addEventListener("keydown",e=>{if(e.key==="Escape"){const t=active;show(null);if(t)el("t-"+t).focus()}});
+
+  // ----- Leituras das articulações (somente exibição) -----
+  const mkReadout=box=>Object.fromEntries(JOINTS.map(([k,j,l])=>{
+    const dt=document.createElement("dt");dt.innerHTML=(j?`<b>${j}</b>`:"")+l;
+    const dd=document.createElement("dd");dd.textContent="—";box.append(dt,dd);return [k,dd];
+  }));
+  const twinDD=mkReadout(el("twin-readout")), teleDD=mkReadout(el("tele-readout"));
+  const fmt=v=>(typeof v==="number"&&isFinite(v)?v.toFixed(1):"—")+"°";
+
+  el("xr-secure").textContent=window.isSecureContext?"sim":"não";
+  el("xr-secure").dataset.s=window.isSecureContext?"ok":"danger";
+  el("xr-api").textContent=navigator.xr?"presente":"ausente";
+  el("xr-api").dataset.s=navigator.xr?"ok":"warn";
+
+  const chip=(id,s,txt)=>{const c=el(id);if(c.dataset.s!==s)c.dataset.s=s;const v=c.querySelector(".v");if(v.textContent!==txt)v.textContent=txt};
+  const set=(id,s,txt)=>{const d=el(id);if(d.dataset.s!==s)d.dataset.s=s;if(d.textContent!==txt)d.textContent=txt};
+
+  // ----- Estado operacional (derivado; nunca ambíguo) -----
+  function refresh(){
+    const client=typeof mq!=="undefined"?mq:null, con=!!(client&&client.connected);
+    const snd=el("snd").checked, mir=el("mir").checked, mqTxt=el("mq").textContent;
+    const md=typeof mode!=="undefined"?mode:"manual", dm=typeof demo!=="undefined"&&demo;
+
+    if(snd&&con)      chip("chip-mode","live","● Controle real habilitado");
+    else if(snd)      chip("chip-mode","warn","◐ Envio armado · MQTT offline");
+    else if(mir&&con) chip("chip-mode","info","● Espelhando robô real");
+    else              chip("chip-mode","info","● Simulação");
+    el("chip-demo").hidden=!dm;
+
+    let ms,mt;
+    if(con){ms="ok";mt="● conectado"}
+    else if(/^erro/.test(mqTxt)){ms="danger";mt="● erro"}
+    else if(client){ms="warn";mt="◐ conectando"}
+    else{ms="off";mt="○ offline"}
+    chip("chip-mqtt",ms,mt);
+    const espMirror=md==="mirror"&&mir&&con;
+    chip("chip-esp",espMirror?"info":"off",espMirror?"◐ espelho ativo":"○ sem telemetria");
+
+    if(active==="twin")JOINTS.forEach(([k])=>{const t=fmt(S[k]);if(twinDD[k].textContent!==t)twinDD[k].textContent=t});
+    if(active==="tele"){
+      set("tele-mqtt",ms,mt.slice(2));
+      set("tele-esp",espMirror?"ok":"off",espMirror?"estado recebido (espelho)":"sem telemetria");
+      set("tele-snd",snd?"warn":"off",snd?(con?"ativo — comandos ao robô":"armado (MQTT offline)"):"desligado");
+      const src=el("tele-src"), real=espMirror;
+      src.textContent=real?"Estado do robô real":"Dados simulados";src.dataset.s=real?"":"warn";
+      JOINTS.forEach(([k])=>{const t=fmt(S[k]);if(teleDD[k].textContent!==t)teleDD[k].textContent=t});
+    }
+  }
+  setInterval(refresh,250);
+
+  let start=null;try{start=localStorage.getItem("atlas_tab")}catch(e){}
+  if(start===null||(start&&!TABS.includes(start)))start=matchMedia("(max-width:640px)").matches?"":"ctrl";
+  show(start||null);
 })();
 </script>
 </body>

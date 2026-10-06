@@ -52,3 +52,37 @@
 
 ### Arquivos modificados
 - `index.html` (somente `<style>`), `CHANGELOG.md`.
+
+## ETAPA 2 — LAYOUT (2026-10-06) — `v2-atlas-layout`
+
+### Alterado
+- `#ui` passou a ser o contêiner de toda a interface (header + painel + barra inferior), com `pointer-events` só nos elementos visíveis. O código existente que oculta `#ui` em VR continua ocultando tudo.
+- **Header** compacto: marca ATLAS · Robotic Digital Twin · stack; abas; chips de estado.
+- **Navegação** por abas (`role=tablist`): DIGITAL TWIN · CONTROLE · TELEMETRIA · WEBXR · CONFIGURAÇÕES. Um único painel contextual por vez; clicar na aba ativa, `×` ou `Esc` recolhe o painel (Digital Twin livre). Setas/Home/End navegam entre abas. Aba lembrada em `localStorage` (`atlas_tab`, com try/catch).
+- **Painéis**:
+  - Digital Twin: cadeia Virtual ⇄ Twin ⇄ MQTT ⇄ ESP32 ⇄ Robô e leitura J1–J4/Garra (somente leitura de `S`).
+  - Controle: `#sl`, `#demo`, `#rst` (os mesmos elementos, só realocados).
+  - Telemetria: estado MQTT/envio; ângulos com selo **DADOS SIMULADOS** (ou "Estado do robô real" em espelho); latência/último pacote como "não medido" — nada inventado.
+  - WebXR: `isSecureContext` e presença de `navigator.xr` (somente leitura) + instruções existentes do README.
+  - Configurações: formulário MQTT com `<label for>`; mesmos IDs.
+- **Chips de estado** (derivados, somente leitura, a cada 250 ms): `● SIMULAÇÃO` · `● ESPELHANDO ROBÔ REAL` · `◐ ENVIO ARMADO · MQTT OFFLINE` · `● CONTROLE REAL HABILITADO` (âmbar sólido); `▶ DEMO`; MQTT offline/conectando/conectado/erro; ESP32 "sem telemetria" (o app não lê `/estado` fora do espelho).
+- **Barra inferior**: `#st` + cadeia de integração.
+- **Responsivo**: ≤1180 px compacta; ≤980 px abas em segunda linha; ≤640 px painel vira bottom sheet (≤52vh), Digital Twin dominante, painel inicia recolhido.
+- Botão 🥽 do Babylon mantido acima da interface (`.xr-button-overlay` z-index).
+- `<title>`: "ATLAS — Robotic Digital Twin".
+
+### Preservado
+- **Movement logic: PRESERVED.** Script principal e CDNs byte a byte idênticos ao baseline (verificado).
+- Todos os IDs usados pela lógica presentes uma única vez: `c ui sl demo rst url usr pwd pfx snd mir con mq st`.
+- O novo script de UI não atribui a `S`, `mode`, `demo` nem `mq` (verificado por análise).
+- Não foi criado E-STOP (não existe lógica; aguardando decisão). Cores da cena 3D inalteradas.
+
+### Testado
+- `npm test`: APROVADO (12/12).
+- Screenshots headless: desktop 1440×860 (5 abas + painel recolhido + estado "controle real" com cliente MQTT falso), tablet 900×1100, mobile 390×844. Nenhum erro de JS.
+
+### Regressões
+- Nenhuma.
+
+### Arquivos modificados
+- `index.html` (head/style, HTML do `#ui`, novo `<script>` de UI ao final), `CHANGELOG.md`.
